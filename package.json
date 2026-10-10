@@ -1,0 +1,16 @@
+{
+  "name": "skillmap",
+  "version": "0.1.0",
+  "description": "Scan an AI project folder and visualize its skills, agents and how they connect. Find unused, duplicated and orphan skills.",
+  "type": "module",
+  "bin": {
+    "skillmap": "./bin/skillmap.mjs"
+  },
+  "scripts": {
+    "start": "node ./bin/skillmap.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}
