@@ -383,9 +383,35 @@
     if (state.renderMode === 'diagram' && state.groupBy) { groupedLayout(); return; }
     const iters = Math.min(700, 200 + visible.size * 5);
     for (let k = 0; k < iters; k++) physicsStep();
+    packIsolated();
     if (state.renderMode === 'diagram') resolveOverlaps();
     for (const id of visible) { const p = pos.get(id); if (p) { p.vx = 0; p.vy = 0; } }
     invalidate();
+  }
+
+  // Nodes with no visible links get pushed far out by repulsion, which forces
+  // the fit-to-view to zoom way out. Line them up under the connected cluster.
+  function packIsolated() {
+    const linked = new Set();
+    for (const e of links) { linked.add(e.source); linked.add(e.target); }
+    const lone = [...visible].filter(id => !linked.has(id)).sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
+    if (!lone.length || lone.length === visible.size) return;
+    const dia = state.renderMode === 'diagram';
+    let minX = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const id of linked) {
+      if (!visible.has(id)) continue;
+      const p = pos.get(id); const hh = dia ? boxFor(nodeById.get(id)).h / 2 : 10; const hw = dia ? BOX.w / 2 : 10;
+      minX = Math.min(minX, p.x - hw); maxX = Math.max(maxX, p.x + hw); maxY = Math.max(maxY, p.y + hh);
+    }
+    const cellW = dia ? BOX.w + 40 : 110, cellH = dia ? 190 : 60;
+    const cols = Math.max(1, Math.floor((maxX - minX) / cellW));
+    const rowW = Math.min(cols, lone.length) * cellW;
+    const x0 = (minX + maxX) / 2 - rowW / 2 + cellW / 2;
+    const y0 = maxY + (dia ? 140 : 70);
+    lone.forEach((id, i) => {
+      const p = pos.get(id);
+      p.x = x0 + (i % cols) * cellW; p.y = y0 + Math.floor(i / cols) * cellH; p.vx = 0; p.vy = 0;
+    });
   }
 
   // Grouped mode: a tidy grid per scope, packed in rows. Deterministic and compact.
@@ -758,9 +784,18 @@
       minX = Math.min(minX, p.x - hw); maxX = Math.max(maxX, p.x + hw);
       minY = Math.min(minY, p.y - hh); maxY = Math.max(maxY, p.y + hh);
     }
+    // grouped mode draws container boxes (with a header) around the cards — frame those too
+    if (state.renderMode === 'diagram' && state.groupBy) {
+      for (const [scope, gids] of scopeGroups()) {
+        if (state.collapsed.has(scope)) continue;
+        const b = groupBounds(gids, 26, 30);
+        minX = Math.min(minX, b.x); minY = Math.min(minY, b.y); maxX = Math.max(maxX, b.x + b.w); maxY = Math.max(maxY, b.y + b.h);
+      }
+    }
     if (!isFinite(minX)) return;
     const bw = Math.max(maxX - minX, 1), bh = Math.max(maxY - minY, 1);
-    zoom = Math.min(2.2, Math.max(0.15, Math.min(W / bw, H / bh) * 0.92));
+    const margin = 48; // keep clear of the legend / hint overlays
+    zoom = Math.min(2.2, Math.max(0.15, Math.min((W - margin * 2) / bw, (H - margin * 2) / bh)));
     pan = { x: W / 2 - ((minX + maxX) / 2) * zoom, y: H / 2 - ((minY + maxY) / 2) * zoom };
     updateZoomLabel();
     invalidate();
@@ -1424,8 +1459,8 @@
     row(h('span', { class: 'sw', style: 'border:2px solid #fbbf24;background:transparent' }), 'amber ring = organizer (graph)'),
   );
   // Collapsible so it never hides cards on small screens; remembered per browser.
-  let legendOpen = true;
-  try { legendOpen = localStorage.getItem('skillmap.legend') !== 'closed'; } catch { /* storage unavailable */ }
+  let legendOpen = false;
+  try { legendOpen = localStorage.getItem('skillmap.legend') === 'open'; } catch { legendOpen = false; }
   const legendToggle = h('button', { class: 'legend-toggle', 'aria-controls': 'legendBody', onclick: () => setLegend(!legendOpen) });
   function setLegend(open) {
     legendOpen = open;
