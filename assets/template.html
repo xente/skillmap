@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SkillMap — __PROJECT__</title>
+  <style>__CSS__</style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">◍</span>
+      <div>
+        <h1>SkillMap</h1>
+        <p class="sub" title="__ROOT__">__PROJECT__</p>
+      </div>
+    </div>
+
+    <div class="search">
+      <input id="search" type="search" placeholder="Search skills, agents…  ( / )" aria-label="Search" autocomplete="off" />
+    </div>
+
+    <div class="topstats" id="topstats"></div>
+
+    <div class="health" id="health" title="Health score"></div>
+    <button class="chip icon" id="helpBtn" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">?</button>
+  </header>
+
+  <nav class="tabbar" role="tablist" aria-label="Views">
+    <button class="tab active" data-view="diagram" role="tab" title="Diagram (1)">Diagram</button>
+    <button class="tab" data-view="graph" role="tab" title="Graph (2)">Graph</button>
+    <button class="tab" data-view="hierarchy" role="tab" title="Hierarchy (3)">Hierarchy</button>
+    <button class="tab" data-view="insights" role="tab" title="Insights (4)">Insights <span class="pill" id="insightCount">0</span></button>
+    <button class="chip" id="fitBtn" title="Fit everything into view (F)">⤢ Fit</button>
+    <button class="chip" id="relayoutBtn" title="Shuffle the layout again (R)">⟳ Re-layout</button>
+    <button class="chip" id="groupBtn" title="Group cards by scope (G)" aria-pressed="false">▦ Group by scope</button>
+    <button class="chip" id="zoomOut" title="Zoom out (−)">−</button>
+    <button class="chip" id="zoomIn" title="Zoom in (+)">+</button>
+    <button class="chip" id="zoomReset" title="Reset zoom (0)">100%</button>
+    <button class="chip" id="exportPng" title="Export the current view as a PNG image">⤓ PNG</button>
+    <button class="chip" id="exportJson" title="Export the graph as JSON">⤓ JSON</button>
+    <span class="spacer"></span>
+    <div class="filters" id="filters"></div>
+  </nav>
+
+  <main>
+    <section id="view-canvas" class="view active">
+      <div class="stage">
+        <canvas id="canvas" aria-label="Skill and agent map"></canvas>
+        <div class="legend" id="legend"></div>
+        <div class="status" id="status" hidden></div>
+        <div class="hint" id="hint">Drag to move · scroll to zoom · double-click to zoom in · ? for shortcuts</div>
+      </div>
+      <aside class="drawer" id="drawer">
+        <div class="drawer-empty">
+          <h2>Details</h2>
+          <p>Select a card or node — in <b>Diagram</b>, <b>Graph</b> or <b>Insights</b> — to inspect it, its path and every connection.</p>
+        </div>
+      </aside>
+    </section>
+
+    <section id="view-hierarchy" class="view">
+      <div class="panel" id="hierarchy"></div>
+    </section>
+
+    <section id="view-insights" class="view">
+      <div class="panel" id="insights"></div>
+    </section>
+  </main>
+
+  <script id="skillmap-data" type="application/json">__DATA__</script>
+  <script>__JS__</script>
+</body>
+</html>
