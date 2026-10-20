@@ -6,7 +6,13 @@ works out how they reference each other, and renders one self-contained,
 interactive HTML report — so you can stop maintaining skills nobody uses,
 skills that overlap, and copies that have quietly drifted apart.
 
-No dependencies. No build step. One Node command (Node 18+).
+If you use **OpenCode**, it also reads your local session history and shows what
+actually happened at runtime: which skills and subagents ran, why, how long
+each step took, and where the agent wasted time — down to a step-by-step
+replay of every session.
+
+No dependencies. No build step. One Node command (Node 18+; the Runtime view
+needs Node 22.5+).
 
 ```bash
 node bin/skillmap.mjs <project-folder> --open
@@ -23,6 +29,7 @@ node bin/skillmap.mjs <project-folder> --open
 - [What it looks at](#what-it-looks-at)
 - [How connections are derived](#how-connections-are-derived)
 - [What it surfaces (Insights)](#what-it-surfaces-insights)
+- [Runtime: what actually happened (OpenCode)](#runtime-what-actually-happened-opencode)
 - [Usage](#usage)
 - [Keyboard](#keyboard)
 - [Layout](#layout)
@@ -277,16 +284,133 @@ Edges are typed:
 
 The **Health** grade (A–F) in the top bar summarises all of the above.
 
+## Runtime: what actually happened (OpenCode)
+
+The static map tells you how skills and agents *reference* each other. The
+**Runtime** tab tells you what happened when agents actually worked in the
+project. SkillMap reads OpenCode's local database
+(`~/.local/share/opencode/opencode.db`, read-only) and keeps the sessions that
+were started in the scanned folder.
+
+```bash
+# report with the Runtime tab (sessions from the last 30 days by default)
+node bin/skillmap.mjs ~/code/my-app --since 90d --open
+
+# the same analysis in the terminal
+node bin/skillmap.mjs trace ~/code/my-app --since 90d
+node bin/skillmap.mjs trace --all --since 365d -j trace.json   # every project
+```
+
+It works with both OpenCode storage layouts (the original tables and the
+`session_v2` schema introduced with OpenCode 2). The database schema is
+internal to OpenCode and undocumented, so a future OpenCode release may need
+an adapter update — everything that touches it lives in
+`lib/runtime/opencode.mjs`.
+
+### What you get
+
+**Runtime tab** — an overview of every session:
+
+- totals: sessions, tool calls, delegations, and the time/tokens spent in
+  delegations that look unnecessary
+- a **sessions table** you can filter and sort (most recent, most wasted
+  tokens, most hotspots, longest, most errors)
+- **delegations that look unnecessary**, with the reason for each
+- **Skill effectiveness** — per skill: completed sessions, errors and retries
+  after it loaded, time and tokens, against the all-sessions baseline
+- **Subagents** — per subagent type: calls, flagged share, failures, average
+  tool calls, time and tokens
+- **Defined but never ran** — skills and agents in the project that no session
+  used (compare with *Unused skills*, which is about references)
+
+**Session page** — click a session (the URL becomes `#session/<id>`):
+
+- **Overview** — where the time went (waiting for the model, thinking, tools,
+  writing; waiting on a subagent or on you is shown apart so nothing is
+  counted twice), **Models & thinking level** per agent, every hotspot,
+  every delegation and what you asked
+- **Timeline · replay** — a Gantt chart with one row per agent (main agent and
+  each subagent), one block per model step coloured by what it spent its
+  time on, with zoom; a readable step list (filter by slow steps, hotspots or
+  agent) and a step detail you can play through: timing, context size,
+  tokens, cost, thinking level, and every thinking block, tool call and reply
+  in order
+- **Call tree** — prompts, skills, subagents (expandable into their own work),
+  errors and thinking, with why each skill/subagent ran
+
+### What it detects
+
+**Unnecessary delegations** (heuristics, labelled as such):
+
+| Flag | Meaning |
+| --- | --- |
+| trivial | the subagent made ≤ 2 tool calls — a direct call would have done |
+| simple lookup | only a few reads/searches |
+| work redone | the parent re-read files the subagent had already read (files the subagent edited don't count — that's verification) |
+| duplicate | same subagent, near-identical prompt as an earlier successful one |
+| failed / cancelled | time spent for nothing |
+
+When OpenCode resumes the same subagent session for several delegations, each
+delegation is only charged for its own turns.
+
+**Time hotspots** inside a session:
+
+| Hotspot | Rule |
+| --- | --- |
+| slow thinking | one step reasoning for over 60 s |
+| waiting for the model | over 20 s before the model returned anything |
+| huge context | the context passed 100k tokens; every later step re-reads it |
+| slow tool | one tool call over 60 s (questions to you don't count) |
+| file read again and again / repeated command | same file read 3+ times, same command run twice |
+| error loop | 3+ failures of the same tool in a row |
+| second-guessing | the reasoning keeps doubting itself — needs `--include-thinking`, marked *inferred* |
+
+**Decision audit** — every skill/subagent call says how it came about, using
+only what the runtime records: *you attached it* (`@mention`), *you named it*
+in the prompt, *model chose* or *subagent chose*. SkillMap never invents the
+model's intent.
+
+**Thinking level** — the reasoning variant OpenCode sent with each call
+(`high`, `medium`, `default` = none sent, the provider decides). A subagent
+that doesn't run at the main agent's level is highlighted; it usually has its
+own `model:` in its definition. Only OpenCode 2 sessions record it.
+
+### Privacy
+
+The report embeds prompts, commands, tool inputs and the model's replies from
+your sessions. With `--include-thinking` it also embeds the model's reasoning
+text (truncated per block), which makes the file much larger. SkillMap does
+**not** redact secrets: if a token or password ever appeared in a session, it
+can end up in the report. Review the report before sharing it — for example
+with [gitleaks](https://github.com/gitleaks/gitleaks):
+
+```bash
+gitleaks dir .skillmap/skillmap.html --redact -v
+```
+
 ## Usage
 
 ```
 skillmap <project-folder> [options]
+skillmap trace [project-folder] [options]
 
-  -o, --out <file>   Output HTML file   (default: <project>/.skillmap/skillmap.html)
-  -j, --json <file>  Also write the raw graph as JSON (for scripting/CI)
-      --open         Open the report in your browser
-  -h, --help         Show help
+  -o, --out <file>      Output HTML file   (default: <project>/.skillmap/skillmap.html)
+  -j, --json <file>     Also write the raw graph as JSON (for scripting/CI)
+      --open            Open the report in your browser
+      --no-trace        Skip the Runtime tab
+      --include-thinking
+                        Embed the model's reasoning text in the report
+  -h, --help            Show help
+
+Runtime options (report and `trace`; need Node 22.5+):
+      --since <age>     Only sessions newer than this: 7d, 12h, 30m (default 30d)
+      --db <file>       OpenCode database (default ~/.local/share/opencode/opencode.db)
+      --all             `trace` only: every project, not just the folder
 ```
+
+`skillmap trace` prints the same runtime analysis in the terminal (skills,
+subagents, flagged delegations, sessions with the most waste) and, with
+`-j`, writes the traces and analysis as JSON.
 
 The output is a single HTML file with the data inlined — no server, no
 network. Open it anywhere. If no skills, agents or instruction files are
@@ -297,12 +421,15 @@ found, nothing is written and the command exits with an error.
 | Key | Action |
 | --- | --- |
 | `/` | Search (Enter jumps to the first match, Esc clears) |
-| `1`–`4` | Diagram · Graph · Hierarchy · Insights |
+| `1`–`5` | Diagram · Graph · Hierarchy · Insights · Runtime |
 | `F` / `R` / `G` | Fit · Re-layout · Group by scope |
 | `+` `-` `0` | Zoom in · out · 100% |
 | `O` | Read the selected definition |
 | `Esc` | Close dialog / clear selection |
 | `?` | Shortcut help |
+
+In a session's **Timeline**: `←` `→` previous/next step, `Space` play/pause,
+`N` next hotspot, `Home` / `End` first/last step.
 
 ## Layout
 
@@ -311,9 +438,12 @@ bin/skillmap.mjs        CLI entry point
 lib/scan.mjs            recursive scanner + frontmatter parser
 lib/analyze.mjs         graph builder, duplicate/unused/cycle analysis
 lib/report.mjs          inlines assets + data into one HTML file
+lib/runtime/model.mjs   normalized trace model shared by runtime adapters
+lib/runtime/opencode.mjs  OpenCode adapter (reads the local SQLite store)
+lib/runtime/analyze.mjs effectiveness, decisions, delegations, hotspots
 assets/template.html    page shell
 assets/app.css          styling
-assets/app.js           diagram, graph, hierarchy and insights views
+assets/app.js           diagram, graph, hierarchy, insights and runtime views
 examples/demo-project   fake project used for the screenshots
 docs/images             screenshots
 ```
