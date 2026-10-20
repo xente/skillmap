@@ -135,6 +135,7 @@
     else if (k === '2') setView('graph');
     else if (k === '3') setView('hierarchy');
     else if (k === '4') setView('insights');
+    else if (k === '5') setView('runtime');
     else if (k === '?') toggleHelp();
     else if ((k === 'o' || k === 'O') && state.selected) openReader(state.selected);
     else if (!onCanvas) return;
@@ -158,7 +159,10 @@
     }
     const gb = document.getElementById('groupBtn');
     if (gb) gb.style.display = view === 'diagram' ? '' : 'none';
-    document.querySelectorAll('.tab').forEach(t => { t.classList.toggle('active', t.dataset.view === view); t.setAttribute('aria-selected', String(t.dataset.view === view)); });
+    const tabView = view === 'session' ? 'runtime' : view; // a session page lives under Runtime
+    document.querySelectorAll('.tab').forEach(t => { t.classList.toggle('active', t.dataset.view === tabView); t.setAttribute('aria-selected', String(t.dataset.view === tabView)); });
+    filtersEl.style.display = view === 'runtime' || view === 'session' ? 'none' : '';
+    if (view !== 'session' && location.hash.startsWith('#session/')) history.replaceState(null, '', location.pathname + location.search);
     document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', isCanvas ? v.id === 'view-canvas' : v.id === 'view-' + view));
     if (isCanvas) {
       state.renderMode = view;
@@ -511,6 +515,21 @@
     if (cur) lines.push(cur);
     return lines;
   }
+  // Shorten one line with an ellipsis until it fits maxW (ctx.font must already be set).
+  function ellipsize(text, maxW) {
+    if (ctx.measureText(text).width <= maxW) return text;
+    let t = text;
+    while (t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1);
+    return t.trimEnd() + '…';
+  }
+  // Wrap text to the card width, at most maxLines, ending in … if it was cut.
+  function fitLines(text, maxW, font, maxLines) {
+    const all = wrap(text, maxW, font);
+    const out = all.slice(0, maxLines);
+    if (all.length > maxLines) out[out.length - 1] += ' …';
+    ctx.font = font;
+    return out.map((l) => ellipsize(l, maxW)); // a single long word can still be too wide
+  }
   function boxFor(n) {
     if (boxCache.has(n.id)) return boxCache.get(n.id);
     const innerW = BOX.w - BOX.padX * 2;
@@ -519,18 +538,20 @@
     if (n.mode) sub.push(`mode: ${n.mode}`);
     if (n.isOrganizer) sub.push(`${n.children.length} children`);
     sub.push(`${n.inDegree} in · ${n.outDegree} out`);
-    lines.push({ t: sub.join('  ·  '), size: F.sub, color: '#8ea2c0', font: '500 ' + F.sub + 'px -apple-system,Inter,sans-serif' });
+    const subFont = '500 ' + F.sub + 'px -apple-system,Inter,sans-serif';
+    for (const l of fitLines(sub.join('  ·  '), innerW, subFont, 2)) lines.push({ t: l, size: F.sub, color: '#8ea2c0', font: subFont });
 
     if (n.description) {
-      const dl = wrap(n.description, innerW, '400 ' + F.body + 'px -apple-system,Inter,sans-serif').slice(0, 3);
-      if (dl.length === 3) dl[2] = dl[2].replace(/\s\S*$/, '') + ' …';
-      for (const l of dl) lines.push({ t: l, size: F.body, color: '#c4d0e2', font: '400 ' + F.body + 'px -apple-system,Inter,sans-serif' });
+      const bodyFont = '400 ' + F.body + 'px -apple-system,Inter,sans-serif';
+      for (const l of fitLines(n.description, innerW, bodyFont, 3)) lines.push({ t: l, size: F.body, color: '#c4d0e2', font: bodyFont });
     }
+    // model / tools / args each start on their own line and wrap inside the card
+    const metaFont = '400 ' + F.meta + 'px ui-monospace,Menlo,monospace';
     const meta = [];
     if (n.model) meta.push('model: ' + n.model);
-    if (n.tools && n.tools.length) meta.push('tools: ' + n.tools.slice(0, 4).join(', '));
+    if (n.tools && n.tools.length) meta.push('tools: ' + n.tools.slice(0, 6).join(', ') + (n.tools.length > 6 ? ` +${n.tools.length - 6}` : ''));
     if (n.argumentHint) meta.push('args: ' + n.argumentHint);
-    if (meta.length) lines.push({ t: meta.join('  ·  '), size: F.meta, color: '#7c8aa3', font: '400 ' + F.meta + 'px ui-monospace,Menlo,monospace' });
+    for (const m of meta) for (const l of fitLines(m, innerW, metaFont, 2)) lines.push({ t: l, size: F.meta, color: '#7c8aa3', font: metaFont });
 
     let flag = null, flagColor = null;
     if (UNUSED_LEAF.has(n.id)) { flag = '⚠ unused'; flagColor = '#f87171'; }
@@ -1473,10 +1494,740 @@
   setLegend(legendOpen);
   function row(a, b) { return h('div', { class: 'row' }, a, b); }
 
+  /* ================= runtime (session traces) ================= */
+  const RT = DATA.runtime;
+  const SPAN_COLOR = { agent: '#38bdf8', skill: '#a78bfa', read: '#64748b', search: '#64748b', edit: '#34d399', exec: '#f59e0b', web: '#f472b6', other: '#7c8aa3', think: '#e879f9' };
+  const FLAG_LABEL = { failed: 'failed', cancelled: 'cancelled', trivial: 'trivial', lookup: 'simple lookup', redone: 'work redone', duplicate: 'duplicate' };
+  const HOW_LABEL = { 'user-attached': 'you attached it', 'user-named': 'you named it', 'model-chose': 'model chose', 'subagent-chose': 'subagent chose' };
+  const fmtMs = (ms) => ms >= 3600000 ? `${(ms / 3600000).toFixed(1)} h` : ms >= 60000 ? `${(ms / 60000).toFixed(1)} min` : ms >= 1000 ? `${(ms / 1000).toFixed(1)} s` : `${Math.round(ms)} ms`;
+  const fmtTok = (n) => n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : String(Math.round(n));
+  const fmtPct = (x) => `${Math.round(x * 100)}%`;
+  const fmtDate = (t) => new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const fmtTime = (t) => new Date(t).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const fmtClock = (ms) => {
+    const s = Math.round(ms / 1000), hh = Math.floor(s / 3600), mm = Math.floor(s % 3600 / 60), ss = s % 60;
+    return hh ? `${hh}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}` : `${mm}:${String(ss).padStart(2, '0')}`;
+  };
+  const tokTotal = (t) => t.input + t.output + t.reasoning + t.cacheRead + t.cacheWrite;
+  const nodeByName = (name) => N.find(n => n.name === name || n.slug === name) || null;
+
+  const rtTraces = new Map(), rtRootOf = new Map();
+  if (RT) {
+    const index = (t, root) => { rtTraces.set(t.id, t); rtRootOf.set(t.id, root); t.children.forEach(c => index(c, root)); };
+    RT.traces.forEach(t => index(t, t.id));
+  }
+  const rtKey = (traceId, spanId) => traceId + '|' + spanId;
+  const rtDecision = new Map(RT ? RT.analysis.decisions.map(d => [rtKey(d.traceId, d.spanId), d]) : []);
+  const rtDelegation = new Map(RT ? RT.analysis.delegations.map(d => [rtKey(d.traceId, d.spanId), d]) : []);
+  const rtSession = new Map(RT ? RT.analysis.sessions.map(x => [x.id, x]) : []);
+  const rtState = { session: null, tab: 'overview', onlyKey: true, filter: '', sort: 'recent', focusSpan: null, stepFilter: 'all', lane: 'all' };
+  const SESSION_SORT = {
+    recent: ['Most recent', (a, b) => b.start - a.start],
+    waste: ['Most wasted tokens', (a, b) => b.wasteTokens - a.wasteTokens || b.flagged - a.flagged],
+    hotspots: ['Most hotspots', (a, b) => b.hotspots - a.hotspots],
+    tokens: ['Most tokens', (a, b) => b.tokens - a.tokens],
+    time: ['Longest', (a, b) => b.activeMs - a.activeMs],
+    errors: ['Most errors', (a, b) => b.errors - a.errors],
+  };
+  function* walkRt(t) { yield t; for (const c of t.children) yield* walkRt(c); }
+  const VARIANT_TIP = 'Reasoning level OpenCode sent with each call. “default” = no level sent, the provider decides.';
+  function variantChip(v, mismatch) {
+    if (!v) return null;
+    return h('span', { class: 'rt-var v-' + v + (mismatch ? ' mismatch' : ''), title: VARIANT_TIP }, 'thinking: ' + v);
+  }
+  const median = (xs) => { const a = [...xs].sort((p, q) => p - q); return a.length ? a[Math.floor(a.length / 2)] : 0; };
+
+  // How a step's time splits. The parent waiting on a subagent or on you is
+  // shown, but not counted as agent work: the subagent's own steps hold that time.
+  const TIME_PARTS = [
+    ['waitMs', 'Waiting for the model', '#64748b', 'Nothing came back from the model yet: provider queue, network, or a long prompt to process.'],
+    ['thinkMs', 'Thinking', SPAN_COLOR.think, 'The model reasoning before it acts.'],
+    ['toolMs', 'Tools', SPAN_COLOR.exec, 'Running commands, reading, searching and editing files.'],
+    ['writeMs', 'Writing', '#94a3b8', 'The model writing its answer or tool arguments.'],
+  ];
+  const WAIT_PARTS = [
+    ['agentMs', 'Waiting on a subagent', SPAN_COLOR.agent, 'The agent sits idle while a subagent works. That work shows in the subagent’s own lane.'],
+    ['userMs', 'Waiting on you', '#334155', 'The agent asked you a question and waited for the answer.'],
+  ];
+  const HOT_INFO = {
+    'slow-thinking': ['Slow thinking', 'The model spent a long time reasoning in a single step before doing anything.'],
+    'model-wait': ['Waiting for the model', 'Nothing came back from the model for a while: provider queue, network, or a very long prompt.'],
+    'big-context': ['Huge context', 'The conversation got so long that every following step re-reads it. Each step gets slower and more expensive.'],
+    'slow-tool': ['Slow tool', 'One tool call (a shell command, a fetch…) took over a minute.'],
+    reread: ['File read again and again', 'The same file was read three or more times.'],
+    'repeat-command': ['Repeated command', 'The exact same command ran more than once.'],
+    'error-loop': ['Error loop', 'The same tool failed several times in a row.'],
+    rumination: ['Second-guessing', 'The reasoning keeps doubting itself. Inferred from the model’s own words, so treat it as a hint, not a fact.'],
+  };
+
+  function stepTotals(steps) {
+    const tot = Object.fromEntries([...TIME_PARTS, ...WAIT_PARTS].map(([k]) => [k, 0]));
+    for (const st of steps) for (const k of Object.keys(tot)) tot[k] += st[k] || 0;
+    tot.work = TIME_PARTS.reduce((n, [k]) => n + tot[k], 0);
+    return tot;
+  }
+
+  /* ---------- Runtime tab: overview of every session ---------- */
+  function renderRuntime() {
+    const root = document.getElementById('runtime');
+    root.innerHTML = '';
+    root.append(h('h2', null, 'Runtime'));
+    if (!RT) {
+      document.getElementById('runtimeCount').textContent = '–';
+      root.append(h('p', { class: 'lead' }, 'No OpenCode sessions were found for this folder, so there is nothing to trace yet. Run OpenCode here and regenerate the report (skillmap reads ~/.local/share/opencode/opencode.db; needs Node 22.5+). Use --since 365d to look further back.'));
+      return;
+    }
+    const R = RT.analysis, c = R.counts, w = R.waste;
+    document.getElementById('runtimeCount').textContent = String(w.delegations);
+    root.append(h('p', { class: 'lead' }, `What actually happened when agents worked in this project — OpenCode sessions from the last ${RT.since}. Facts come straight from the runtime; anything inferred (like “unnecessary”) is labelled as a heuristic. Open a session below to replay it step by step.`));
+
+    root.append(h('div', { class: 'kpis' },
+      kpi('Sessions', c.sessions, `${c.subagentSessions} subagent sessions`),
+      kpi('Tool calls', c.toolCalls, `${c.skillCalls} skill loads`),
+      kpi('Delegations', c.delegations, `${R.agents.length} subagent types`),
+      kpi('Flagged delegations', w.delegations, c.delegations ? `${fmtPct(w.delegations / c.delegations)} of all delegations` : '', w.delegations ? 'bad' : 'ok'),
+      kpi('Time in flagged', fmtMs(w.durationMs), 'upper bound', w.durationMs ? 'warn' : 'ok'),
+      kpi('Tokens in flagged', fmtTok(w.tokens), `≈ $${w.cost.toFixed(2)}`, w.tokens ? 'warn' : 'ok')));
+
+    // sessions first: it is what people come here for
+    root.append(h('div', { class: 'sec-title' }, 'Sessions'));
+    root.append(sessionsTable());
+
+    root.append(h('div', { class: 'sec-title' }, 'Delegations that look unnecessary'));
+    root.append(h('p', { class: 'hintp rt-note' }, 'Heuristics: trivial = subagent made ≤ 2 tool calls · simple lookup = only a few reads/searches · work redone = the parent re-read files the subagent had read · duplicate = same subagent, near-identical prompt · failed/cancelled = time spent for nothing.'));
+    const flagged = R.delegations.filter(d => d.flags.length).sort((a, b) => b.tokens - a.tokens);
+    const fl = h('div', { class: 'rt-flagged' });
+    if (!flagged.length) fl.append(h('div', { class: 'empty-ok' }, '✓ No delegation looks unnecessary'));
+    appendCapped(fl, flagged.map(d => h('button', { class: 'item rt-deleg', onclick: () => openSession(rtRootOf.get(d.traceId), { span: d.spanId }) },
+      h('span', { class: 'dot', style: `background:${SPAN_COLOR.agent}` }),
+      h('span', { class: 'rt-dmain' },
+        h('span', { class: 'nm' }, h('b', null, d.agent), ' — ', d.description || '(no description)'),
+        h('span', { class: 'rt-why' }, d.flags.map(f => f.detail).join(' · '))),
+      h('span', { class: 'rt-flags' }, d.flags.map(f => flagChip(f.type))),
+      h('span', { class: 'rt-num' }, fmtMs(d.durationMs)),
+      h('span', { class: 'rt-num' }, fmtTok(d.tokens) + ' tok'))), 6);
+    root.append(fl);
+
+    const grid = h('div', { class: 'rt-two' });
+    grid.append(skillTable(R), agentTable(R));
+    root.append(grid);
+
+    const usedSkills = new Set(R.skills.map(s => s.name)), usedAgents = new Set(R.agents.map(a => a.name));
+    const neverRan = N.filter(n => (n.kind === 'skill' && !usedSkills.has(n.name) && !usedSkills.has(n.slug)) || (n.kind === 'agent' && !usedAgents.has(n.name) && !usedAgents.has(n.slug)));
+    if (N.length) {
+      const grid2 = h('div', { class: 'grid', style: 'margin-top:16px' });
+      grid2.append(card('Defined but never ran', neverRan.map(n => n.id), 'warn',
+        `Skills and agents defined in this project that no OpenCode session used in the last ${RT.since}. Compare with “Unused skills” in Insights: that one is about references, this one is about real runs.`, false));
+      root.append(grid2);
+    }
+  }
+
+  function sessionsTable() {
+    const wrap = h('div', { class: 'rt-stable' });
+    const body = h('tbody');
+    const fill = () => {
+      body.innerHTML = '';
+      const q = rtState.filter;
+      const rows = [...RT.traces].sort((a, b) => SESSION_SORT[rtState.sort][1](rtSession.get(a.id), rtSession.get(b.id)))
+        .filter(t => !q || (t.title || '').toLowerCase().includes(q) || t.prompts.some(p => p.text.toLowerCase().includes(q)));
+      for (const t of rows) {
+        const S = rtSession.get(t.id);
+        const first = t.prompts[0]?.text || '';
+        body.append(h('tr', { class: 'rt-srow', tabindex: '0', onclick: () => openSession(t.id), onkeydown: (e) => { if (e.key === 'Enter') openSession(t.id); } },
+          h('td', { class: 'rt-scell' }, h('div', { class: 'rt-st' }, t.title || t.id), first ? h('div', { class: 'rt-sfirst', title: first }, first) : null),
+          h('td', null, h('div', null, fmtDate(t.start)), h('span', { class: 'rt-out o-' + t.outcome }, t.outcome)),
+          h('td', { class: 'num' }, fmtMs(t.activeMs)),
+          h('td', null,
+            S.agents.length ? h('span', { class: 'rt-mini a', title: S.agents.join(', ') }, `${S.delegations} delegation${S.delegations > 1 ? 's' : ''}`) : null,
+            S.skills.length ? h('span', { class: 'rt-mini s', title: S.skills.join(', ') }, `${S.skills.length} skill${S.skills.length > 1 ? 's' : ''}`) : null,
+            !S.agents.length && !S.skills.length ? h('span', { class: 'muted' }, '–') : null),
+          h('td', { class: 'num' }, S.flagged ? h('span', { class: 'rt-mini f' }, `${S.flagged} flagged`) : h('span', { class: 'muted' }, '–')),
+          h('td', { class: 'num' }, S.hotspots ? h('span', { class: 'rt-mini h' }, String(S.hotspots)) : h('span', { class: 'muted' }, '–')),
+          h('td', { class: 'num' }, fmtTok(S.tokens)),
+          h('td', { class: 'num' }, '$' + S.cost.toFixed(2)),
+          h('td', { class: 'rt-go' }, '›')));
+      }
+      if (!rows.length) body.append(h('tr', null, h('td', { colspan: '9', class: 'muted' }, 'No session matches.')));
+    };
+    wrap.append(h('div', { class: 'rt-scontrols' },
+      h('input', { type: 'search', class: 'rt-filter', placeholder: 'Filter by title or prompt…', value: rtState.filter, oninput: (e) => { rtState.filter = e.target.value.toLowerCase(); fill(); } }),
+      h('select', { class: 'rt-filter', 'aria-label': 'Sort sessions', onchange: (e) => { rtState.sort = e.target.value; fill(); } },
+        Object.entries(SESSION_SORT).map(([k, [label]]) => h('option', { value: k, ...(rtState.sort === k ? { selected: '' } : {}) }, 'Sort: ' + label)))));
+    wrap.append(h('div', { class: 'rt-tscroll' }, h('table', { class: 'rt-table rt-sessions-t' },
+      h('thead', null, h('tr', null, ['Session', 'When', 'Active', 'Agents & skills', 'Flagged', 'Hotspots', 'Tokens', 'Cost', ''].map(x => h('th', null, x)))),
+      body)));
+    fill();
+    return wrap;
+  }
+
+  function kpi(label, value, sub, tone) {
+    return h('div', { class: 'kpi' + (tone ? ' ' + tone : '') }, h('div', { class: 'kl' }, label), h('div', { class: 'kv' }, String(value)), sub ? h('div', { class: 'ks' }, sub) : null);
+  }
+  function flagChip(type) { return h('span', { class: 'rt-flag f-' + type }, FLAG_LABEL[type] || type); }
+  function howChip(d) {
+    if (!d) return null;
+    return h('span', { class: 'rt-how h-' + d.how, title: d.note + (d.evidence ? `\n“${d.evidence}”` : '') }, HOW_LABEL[d.how] || d.how);
+  }
+  // A bar showing value vs the all-sessions baseline.
+  function vsBar(v, base, better) {
+    const good = better === 'high' ? v >= base : v <= base;
+    return h('span', { class: 'rt-vs' },
+      h('span', { class: 'rt-bar' }, h('i', { style: `width:${Math.min(100, v * 100)}%;background:${good ? 'var(--ok)' : 'var(--bad)'}` }), h('b', { style: `left:${Math.min(100, base * 100)}%`, title: `baseline ${fmtPct(base)}` })),
+      h('span', null, fmtPct(v)));
+  }
+  function nameCell(name, kind) {
+    const n = nodeByName(name);
+    return h('td', { class: 'rt-name' }, h('span', { class: 'dot', style: `background:${SPAN_COLOR[kind]}` }), ' ',
+      n ? h('button', { class: 'linkbtn', title: 'Show definition', onclick: () => focusNode(n.id) }, name) : h('span', { title: 'Not defined in this project (global or built-in)' }, name));
+  }
+  function skillTable(R) {
+    const b = R.baseline;
+    const c = h('div', { class: 'card' });
+    c.append(h('h3', null, 'Skill effectiveness', h('span', { class: 'count' }, String(R.skills.length))));
+    c.append(h('p', { class: 'hintp' }, `Sessions where the skill was loaded, against all sessions (marker on the bar). Done = session ended normally. Errors / retries are tool calls after the skill loaded.`));
+    if (!R.skills.length) { c.append(h('div', { class: 'empty-ok' }, 'No skill was loaded in these sessions.')); return c; }
+    c.append(h('div', { class: 'rt-tscroll' }, h('table', { class: 'rt-table' },
+      h('tr', null, h('th', null, 'Skill'), h('th', null, 'Calls'), h('th', null, 'Done'), h('th', null, 'Errors'), h('th', null, 'Retries'), h('th', null, 'Avg time'), h('th', null, 'Avg tokens')),
+      h('tr', { class: 'rt-base' }, h('td', null, 'all sessions'), h('td', null, '–'), h('td', null, fmtPct(b.completionRate)), h('td', null, fmtPct(b.errorRateAfter)), h('td', null, String(b.retriesAfter)), h('td', null, fmtMs(b.avgDurationMs)), h('td', null, fmtTok(b.avgTokens))),
+      R.skills.map(s => h('tr', null, nameCell(s.name, 'skill'), h('td', null, String(s.invocations)),
+        h('td', null, vsBar(s.completionRate, b.completionRate, 'high')),
+        h('td', null, vsBar(s.errorRateAfter, b.errorRateAfter, 'low')),
+        h('td', null, String(s.retriesAfter)), h('td', null, fmtMs(s.avgDurationMs)), h('td', null, fmtTok(s.avgTokens)))))));
+    return c;
+  }
+  function agentTable(R) {
+    const c = h('div', { class: 'card' });
+    c.append(h('h3', null, 'Subagents', h('span', { class: 'count' }, String(R.agents.length))));
+    c.append(h('p', { class: 'hintp' }, 'Every delegation, by subagent type. A high flagged share means the main agent often hands it work it could do itself.'));
+    if (!R.agents.length) { c.append(h('div', { class: 'empty-ok' }, 'No subagent was used in these sessions.')); return c; }
+    c.append(h('div', { class: 'rt-tscroll' }, h('table', { class: 'rt-table' },
+      h('tr', null, h('th', null, 'Subagent'), h('th', null, 'Calls'), h('th', null, 'Flagged'), h('th', null, 'Failed'), h('th', null, 'Avg calls'), h('th', null, 'Avg time'), h('th', null, 'Tokens')),
+      R.agents.map(a => h('tr', null, nameCell(a.name, 'agent'), h('td', null, String(a.delegations)),
+        h('td', null, vsBar(a.flagged / a.delegations, 0, 'low')),
+        h('td', null, String(a.failed)), h('td', null, (a.toolCalls / a.delegations).toFixed(1)),
+        h('td', null, fmtMs(a.durationMs / a.delegations)), h('td', null, fmtTok(a.tokens)))))));
+    return c;
+  }
+
+  /* ---------- session page (#session/<id>) ---------- */
+  function openSession(id, opts = {}) {
+    if (rtState.session !== id) { tl.cur = 0; rtState.lane = 'all'; }
+    rtState.session = id;
+    rtState.focusSpan = opts.span || null;
+    if (opts.span) rtState.tab = 'tree';
+    else if (opts.tab) rtState.tab = opts.tab;
+    const hash = '#session/' + encodeURIComponent(id);
+    if (location.hash !== hash) location.hash = hash; // → route()
+    else route();
+  }
+  function route() {
+    const m = /^#session\/(.+)$/.exec(location.hash);
+    const id = m && decodeURIComponent(m[1]);
+    if (id && rtTraces.has(id)) {
+      if (rtState.session !== id) { tl.cur = 0; rtState.lane = 'all'; }
+      rtState.session = id;
+      setView('session');
+      renderSession();
+      document.getElementById('session').scrollTop = 0;
+    } else if (state.view === 'session') setView('runtime');
+  }
+  window.addEventListener('hashchange', route);
+
+  function renderSession() {
+    stopPlay();
+    const root = document.getElementById('session');
+    root.innerHTML = '';
+    const t = rtTraces.get(rtState.session);
+    if (!t) return;
+    const S = rtSession.get(t.id);
+    const tree = [...walkRt(t)];
+    root.append(h('div', { class: 'ss-top' },
+      h('button', { class: 'chip ss-back', onclick: () => { location.hash = ''; setView('runtime'); } }, '← All sessions'),
+      h('div', { class: 'ss-title' },
+        h('h2', null, t.title || t.id),
+        h('div', { class: 'ss-sub' },
+          h('span', { class: 'rt-out o-' + t.outcome }, t.outcome), ' · ', fmtDate(t.start), ' · ',
+          h('b', null, fmtMs(t.activeMs)), ' active · agent ', h('b', null, t.agent || '–'), ' · model ', h('b', null, t.model || '–'), ' ', variantChip(t.variant),
+          ' · ', fmtTok(S.tokens), ' tokens · $', S.cost.toFixed(3),
+          tree.length > 1 ? ` · ${tree.length - 1} subagent session${tree.length > 2 ? 's' : ''}` : '')),
+      h('nav', { class: 'ss-tabs' },
+        [['overview', 'Overview'], ['timeline', 'Timeline · replay'], ['tree', 'Call tree']].map(([k, l]) =>
+          h('button', { class: 'stab' + (rtState.tab === k ? ' active' : ''), onclick: () => { rtState.tab = k; renderSession(); } }, l)))));
+    const body = h('div', { class: 'ss-body' });
+    root.append(body);
+    if (rtState.tab === 'timeline') renderTimeline(t, body);
+    else if (rtState.tab === 'tree') renderCallTree(t, body);
+    else renderSessionOverview(t, S, body);
+  }
+
+  function renderSessionOverview(t, S, el) {
+    const tree = [...walkRt(t)];
+    const tot = stepTotals(tree.flatMap(x => x.steps || []));
+    el.append(h('div', { class: 'kpis ss-kpis' },
+      kpi('Agent work', fmtMs(tot.work), `${tree.reduce((n, x) => n + (x.steps || []).length, 0)} model steps`),
+      kpi('Tool calls', S.toolCalls, `${S.errors} errors · ${S.retries} retries`, S.errors ? 'warn' : null),
+      kpi('Delegations', S.delegations, S.delegations ? `${fmtMs(S.delegatedMs)} · ${fmtTok(S.delegatedTokens)} tok` : 'none'),
+      kpi('Flagged', S.flagged, S.delegations ? `${fmtPct(S.flagged / S.delegations)} of delegations` : 'no delegations', S.flagged ? 'bad' : 'ok'),
+      kpi('Hotspots', S.hotspots, 'places losing time', S.hotspots ? 'warn' : 'ok'),
+      kpi('Cost', '$' + S.cost.toFixed(2), `${fmtTok(S.tokens)} tokens`)));
+
+    // where the time went, explained
+    const tc = h('section', { class: 'ss-card' }, h('h3', null, 'Where the time went'),
+      h('p', { class: 'hintp' }, 'All model steps of this session and its subagents. Waiting on a subagent or on you is listed apart so nothing is counted twice.'));
+    if (tot.work) {
+      tc.append(h('div', { class: 'ss-bigbar' }, TIME_PARTS.map(([k, l, c]) => tot[k] ? h('i', { style: `width:${tot[k] / tot.work * 100}%;background:${c}`, title: `${l}: ${fmtMs(tot[k])}` }) : null)));
+      tc.append(h('div', { class: 'ss-parts' },
+        TIME_PARTS.map(([k, l, c, help]) => partRow(l, c, tot[k], tot.work, help)),
+        WAIT_PARTS.filter(([k]) => tot[k]).map(([k, l, c, help]) => partRow(l, c, tot[k], null, help))));
+    } else tc.append(h('div', { class: 'hintp' }, 'No model steps recorded.'));
+    el.append(tc);
+
+    // which model and reasoning level each agent ran with
+    if (tree.some(x => x.variant || (x.steps || []).some(st => st.variant))) {
+      const mainVar = t.variant;
+      const mc = h('section', { class: 'ss-card' }, h('h3', null, 'Models & thinking level'),
+        h('p', { class: 'hintp' }, VARIANT_TIP + ' Subagents normally inherit the session’s model and level; one that differs usually has its own `model:` in its definition.'));
+      const delegOf = new Map(RT.analysis.delegations.filter(d => d.childTraceId).map(d => [d.childTraceId, d]));
+      mc.append(h('div', { class: 'rt-tscroll' }, h('table', { class: 'rt-table' },
+        h('tr', null, ['Agent', 'Model', 'Thinking level', 'Steps', 'Reasoning tokens / step', 'Time thinking', ''].map(x => h('th', null, x))),
+        tree.map((x, i) => {
+          const st = x.steps || [];
+          const vars = [...new Set(st.map(z => z.variant).filter(Boolean))];
+          const shown = vars.length ? vars.join(', ') : x.variant;
+          const mismatch = i > 0 && mainVar && shown && shown !== mainVar;
+          const work = st.reduce((n, z) => n + (z.thinkMs || 0) + (z.toolMs || 0) + (z.waitMs || 0) + (z.writeMs || 0), 0);
+          const think = st.reduce((n, z) => n + (z.thinkMs || 0), 0);
+          return h('tr', null,
+            h('td', null, h('span', { class: 'dot', style: `background:${i ? SPAN_COLOR.agent : 'var(--accent)'}` }), ' ', h('b', null, x.agent || 'main'), i ? h('div', { class: 'hintp' }, delegOf.get(x.id)?.description || '') : h('div', { class: 'hintp' }, 'main agent')),
+            h('td', null, x.model || '–'),
+            h('td', null, shown ? shown.split(', ').map(v => variantChip(v, mismatch)) : '–'),
+            h('td', { class: 'num' }, String(st.length)),
+            h('td', { class: 'num' }, fmtTok(median(st.map(z => z.tokens.reasoning)))),
+            h('td', { class: 'num' }, work ? `${fmtMs(think)} (${fmtPct(think / work)})` : '–'),
+            h('td', { class: 'ss-wrap' }, mismatch ? h('span', { class: 'rt-why warn' }, `differs from the main agent (${mainVar})`) : null));
+        }))));
+      el.append(mc);
+    }
+
+    // hotspots
+    const ids = new Set(tree.map(x => x.id));
+    const hot = RT.analysis.hotspots.filter(f => ids.has(f.traceId));
+    const hc = h('section', { class: 'ss-card' }, h('h3', null, 'Where this session loses time', h('span', { class: 'count' }, String(hot.length))),
+      h('p', { class: 'hintp' }, 'Each one links to the exact step in the timeline.'));
+    if (!hot.length) hc.append(h('div', { class: 'empty-ok' }, '✓ Nothing stands out'));
+    const hg = h('div', { class: 'ss-hots' });
+    appendCapped(hg, hot.map(f => hotCard(f, tree)), 8);
+    hc.append(hg);
+    el.append(hc);
+
+    // delegations
+    const dels = RT.analysis.delegations.filter(d => ids.has(d.traceId));
+    if (dels.length) {
+      const dc = h('section', { class: 'ss-card' }, h('h3', null, 'Delegations', h('span', { class: 'count' }, String(dels.length))),
+        h('p', { class: 'hintp' }, 'Every subagent call, in order. Click one to see it in the call tree.'));
+      dc.append(h('div', { class: 'rt-tscroll' }, h('table', { class: 'rt-table ss-dels' },
+        h('tr', null, ['Subagent', 'Task', 'Why it ran', 'Time', 'Tokens', 'Result', ''].map(x => h('th', null, x))),
+        dels.map(d => h('tr', { class: 'rt-srow', onclick: () => openSession(t.id, { span: d.spanId }) },
+          h('td', null, h('span', { class: 'dot', style: `background:${SPAN_COLOR.agent}` }), ' ', h('b', null, d.agent)),
+          h('td', { class: 'ss-wrap' }, d.description || '–', d.flags.length ? h('div', { class: 'rt-why' }, d.flags.map(f => f.detail).join(' · ')) : null),
+          h('td', null, howChip(rtDecision.get(rtKey(d.traceId, d.spanId)))),
+          h('td', { class: 'num' }, fmtMs(d.durationMs)),
+          h('td', { class: 'num' }, fmtTok(d.tokens)),
+          h('td', null, d.outcome),
+          h('td', null, d.flags.map(f => flagChip(f.type))))))));
+      el.append(dc);
+    }
+
+    // what was asked
+    if (t.prompts.length) {
+      const pc = h('section', { class: 'ss-card' }, h('h3', null, 'What you asked', h('span', { class: 'count' }, String(t.prompts.length))));
+      for (const p of t.prompts) pc.append(h('div', { class: 'rt-prompt' }, h('span', { class: 'rt-plabel' }, fmtTime(p.at)),
+        h('span', { class: 'rt-ptext' }, p.text.length > 500 ? p.text.slice(0, 500) + '…' : p.text),
+        (p.attached || []).map(a => h('span', { class: 'rt-att' }, '@' + a))));
+      el.append(pc);
+    }
+  }
+
+  function partRow(label, color, ms, of, help) {
+    return h('div', { class: 'ss-part' },
+      h('span', { class: 'dot', style: `background:${color}` }),
+      h('div', { class: 'ss-pl' }, h('b', null, label), h('div', { class: 'hintp' }, help)),
+      h('div', { class: 'ss-pv' }, h('b', null, fmtMs(ms)), of ? h('span', null, fmtPct(ms / of)) : h('span', { class: 'muted' }, 'not counted')));
+  }
+
+  function hotCard(f, tree) {
+    const [title, help] = HOT_INFO[f.type] || [f.type, ''];
+    const lane = tree.find(x => x.id === f.traceId);
+    return h('button', { class: 'ss-hot' + (f.inferred ? ' inferred' : ''), onclick: () => { rtState.tab = 'timeline'; rtState.pendingHot = f; renderSession(); } },
+      h('div', { class: 'ss-hh' }, h('b', null, title), f.inferred ? h('span', { class: 'rt-flag f-inferred' }, 'inferred') : null, h('span', { class: 'ss-hms' }, fmtMs(f.ms))),
+      h('div', { class: 'ss-hd' }, f.detail),
+      h('div', { class: 'hintp' }, help),
+      h('div', { class: 'ss-hl' }, (lane && lane.parentId ? 'subagent ' : '') + (lane?.agent || 'main'), f.step != null ? ` · step ${f.step + 1}` : '', ' · open in timeline →'));
+  }
+
+  function renderCallTree(t, el) {
+    el.append(h('div', { class: 'ss-toolbar' },
+      h('label', { class: 'rt-toggle' },
+        h('input', { type: 'checkbox', ...(rtState.onlyKey ? { checked: '' } : {}), onchange: (e) => { rtState.onlyKey = e.target.checked; renderSession(); } }),
+        ' Only skills, subagents and errors'),
+      h('div', { class: 'rt-legend' }, Object.entries({ agent: 'subagent', skill: 'skill', think: 'thinking', read: 'read/search', edit: 'edit', exec: 'shell', web: 'web', other: 'other' })
+        .map(([k, v]) => h('span', null, h('span', { class: 'dot', style: `background:${SPAN_COLOR[k]}` }), ' ', v)))));
+    const all = [...walkRt(t)];
+    el.append(h('section', { class: 'ss-card' }, traceBody(t, { start: t.start, end: Math.max(t.end, ...all.map(x => x.end)) }, rtState.focusSpan)));
+    if (rtState.focusSpan) requestAnimationFrame(() => document.querySelector(`[data-span="${CSS.escape(rtState.focusSpan)}"]`)?.scrollIntoView({ block: 'center' }));
+  }
+
+  // One trace: turns (user prompts) with their tool calls; subagent calls expand into their own trace.
+  function traceBody(t, range, focusSpan, onlyTurns) {
+    const body = h('div', { class: 'rt-trace' });
+    const turns = new Map();
+    const thinks = (t.thinking || []).map((x, i) => ({ ...x, id: 'think-' + i, kind: 'think', tool: 'thinking', name: 'thinking', status: 'ok', input: {} }));
+    for (const s of [...t.spans, ...thinks].sort((a, b) => a.start - b.start)) { if (!turns.has(s.turn)) turns.set(s.turn, []); turns.get(s.turn).push(s); }
+    const turnIds = [...new Set([...t.prompts.map(p => p.turn), ...turns.keys()])].sort((a, b) => a - b)
+      .filter(n => !onlyTurns || onlyTurns.includes(n));
+    for (const turn of turnIds) {
+      const p = t.prompts.find(x => x.turn === turn);
+      if (p) {
+        const txt = p.text.length > 280 ? p.text.slice(0, 280) + '…' : p.text;
+        body.append(h('div', { class: 'rt-prompt', title: p.text },
+          h('span', { class: 'rt-plabel' }, t.parentId ? 'task' : 'you'), h('span', { class: 'rt-ptext' }, txt),
+          (p.attached || []).map(a => h('span', { class: 'rt-att' }, '@' + a))));
+      }
+      let hidden = [];
+      const flush = () => {
+        if (!hidden.length) return;
+        const tools = hidden.filter(s => s.kind !== 'think'), th = hidden.filter(s => s.kind === 'think');
+        const ms = (xs) => xs.reduce((n, s) => n + s.end - s.start, 0);
+        const byKind = tools.reduce((m, s) => ({ ...m, [s.tool]: (m[s.tool] || 0) + 1 }), {});
+        body.append(h('div', { class: 'rt-hidden' },
+          th.length ? h('span', { class: 'rt-hthink' }, h('span', { class: 'dot', style: `background:${SPAN_COLOR.think}` }), ` thinking ${fmtMs(ms(th))}`) : null,
+          th.length && tools.length ? ' · ' : null,
+          tools.length ? `${tools.length} tool call${tools.length > 1 ? 's' : ''} (${fmtMs(ms(tools))}): ` + Object.entries(byKind).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(' · ') : null));
+        hidden = [];
+      };
+      for (const s of turns.get(turn) || []) {
+        const key = s.kind === 'agent' || s.kind === 'skill' || s.status === 'error';
+        if (rtState.onlyKey && !key) { hidden.push(s); continue; }
+        flush();
+        body.append(spanRow(t, s, range, focusSpan));
+      }
+      flush();
+    }
+    if (!turnIds.length) body.append(h('div', { class: 'rt-hidden' }, 'No tool calls.'));
+    return body;
+  }
+
+  function spanRow(t, s, range, focusSpan) {
+    const total = Math.max(1, range.end - range.start);
+    const left = Math.max(0, Math.min(100, (s.start - range.start) / total * 100));
+    const width = Math.max(0.4, Math.min(100 - left, (s.end - s.start) / total * 100));
+    const detail = s.input.description || s.input.file || s.input.pattern || s.input.command || s.input.url || s.input.query || '';
+    const dec = rtDecision.get(rtKey(t.id, s.id));
+    const del = s.kind === 'agent' ? rtDelegation.get(rtKey(t.id, s.id)) : null;
+    const node = (s.kind === 'skill' || s.kind === 'agent') ? nodeByName(s.name) : null;
+    const row = h('div', { class: 'rt-span k-' + s.kind + (s.status === 'error' ? ' err' : '') + (del && del.flags.length ? ' flagged' : '') + (focusSpan === s.id ? ' focus' : ''), 'data-span': s.id },
+      h('span', { class: 'dot', style: `background:${SPAN_COLOR[s.kind] || SPAN_COLOR.other}` }),
+      h('span', { class: 'rt-sname' }, s.kind === 'agent' ? 'subagent ' : s.kind === 'skill' ? 'skill ' : '', h('b', null, s.name)),
+      node ? h('button', { class: 'linkbtn', title: 'Show definition', onclick: (e) => { e.stopPropagation(); focusNode(node.id); } }, 'def') : null,
+      h('span', { class: 'rt-sdetail', title: detail }, detail),
+      howChip(dec),
+      del ? del.flags.map(f => flagChip(f.type)) : null,
+      s.status === 'error' ? h('span', { class: 'rt-err', title: s.error || '' }, s.error || 'error') : null,
+      h('span', { class: 'rt-wf' }, h('i', { style: `left:${left}%;width:${width}%;background:${SPAN_COLOR[s.kind] || SPAN_COLOR.other}` })),
+      h('span', { class: 'rt-num' }, fmtMs(s.end - s.start)));
+    const child = s.childTraceId && rtTraces.get(s.childTraceId);
+    if (!child) return row;
+    const box = h('details', { class: 'rt-child' + (del && del.flags.length ? ' flagged' : ''), ...(focusSpan === s.id ? { open: '' } : {}) });
+    box.append(h('summary', null, row));
+    const shared = del && del.childTurns;
+    box.append(h('div', { class: 'rt-childmeta' },
+      del ? `${del.toolCalls} tool calls · ${fmtTok(del.tokens)} tokens · $${del.cost.toFixed(3)} · ${del.outcome}${shared ? ' · resumed subagent session (showing this delegation only)' : ''}`
+        : `${child.spans.length} tool calls · ${fmtTok(tokTotal(child.tokens))} tokens · $${child.cost.toFixed(3)} · ${child.outcome}`,
+      del && del.flags.length ? h('div', { class: 'rt-why' }, del.flags.map(f => `${FLAG_LABEL[f.type]}: ${f.detail}`).join(' · ')) : null));
+    box.append(traceBody(child, range, focusSpan, shared || null));
+    return box;
+  }
+
+  /* ---------- session timeline: replay step by step ---------- */
+  const GAP_CAP = 15000; // idle gaps longer than this are squeezed on the timeline
+  const SLOW_STEP_MS = 10000;
+  const tl = { steps: [], lanes: [], x: null, cur: 0, timer: null, speed: 1000, zoom: 1, hot: [] };
+
+  // Map wall-clock time to a position where idle stretches are squeezed.
+  function makeAxis(intervals) {
+    const iv = intervals.filter(([a, b]) => b >= a).sort((p, q) => p[0] - q[0]);
+    const merged = [];
+    for (const [a, b] of iv) { const last = merged[merged.length - 1]; if (last && a <= last[1]) last[1] = Math.max(last[1], b); else merged.push([a, b]); }
+    const segs = []; let pos = 0;
+    merged.forEach(([a, b], i) => {
+      if (i) { const gap = a - merged[i - 1][1]; const g = Math.min(gap, GAP_CAP); segs.push({ gap: true, a: merged[i - 1][1], b: a, x0: pos, len: g, real: gap }); pos += g; }
+      segs.push({ a, b, x0: pos, len: b - a }); pos += b - a;
+    });
+    const total = Math.max(1, pos);
+    const x = (t) => {
+      for (const s of segs) if (t <= s.b) return (s.x0 + (t < s.a ? 0 : (t - s.a) / Math.max(1, s.b - s.a) * s.len)) / total * 100;
+      return 100;
+    };
+    return { x, gaps: segs.filter(s => s.gap && s.real > GAP_CAP), total };
+  }
+
+  // Steps' own work time: without waiting on a subagent or on the user.
+  const workMs = (st) => Math.max(0, st.end - st.start - (st.agentMs || 0) - (st.userMs || 0));
+
+  function stepSummary(s) {
+    const counts = {};
+    for (const it of s.st.items) {
+      if (it.type === 'tool' || it.type === 'ask' || it.type === 'agent') {
+        const sp = s.trace.spans.find(z => z.id === it.ref);
+        const k = !sp ? 'tool' : sp.kind === 'agent' ? `→ ${sp.name}` : sp.kind === 'skill' ? `skill ${sp.name}` : sp.tool;
+        counts[k] = (counts[k] || 0) + 1;
+      }
+    }
+    const acts = Object.entries(counts).map(([k, n]) => n > 1 ? `${k} ×${n}` : k);
+    const parts = [];
+    if (s.st.thinkMs >= 1000) parts.push(`thinks ${fmtMs(s.st.thinkMs)}`);
+    if (acts.length) parts.push(acts.join(', '));
+    if (!acts.length && s.st.items.some(i => i.type === 'text')) parts.push('writes a reply');
+    return parts.join(' → ') || 'no output';
+  }
+
+  function renderTimeline(t, el) {
+    const lanes = [...walkRt(t)];
+    const delegOf = new Map(RT.analysis.delegations.filter(d => d.childTraceId).map(d => [d.childTraceId, d]));
+    tl.lanes = lanes.map((x, i) => ({ trace: x, label: i === 0 ? (x.agent || 'main agent') : (x.agent || 'subagent'), main: i === 0, sub: i === 0 ? 'main agent' : (delegOf.get(x.id)?.description || x.title || 'subagent') }));
+    tl.steps = lanes.flatMap((x, li) => (x.steps || []).map(st => ({ st, lane: li, trace: x }))).sort((a, b) => a.st.start - b.st.start);
+    const ids = new Set(lanes.map(x => x.id));
+    tl.hot = RT.analysis.hotspots.filter(f => ids.has(f.traceId));
+    if (!tl.steps.length) { el.append(h('section', { class: 'ss-card' }, h('div', { class: 'hintp' }, 'No model steps recorded for this session.'))); return; }
+    if (rtState.pendingHot) { const g = hotStepIndex(rtState.pendingHot); if (g >= 0) tl.cur = g; rtState.pendingHot = null; }
+    tl.cur = Math.min(tl.cur, tl.steps.length - 1);
+    const axis = makeAxis(tl.steps.map(s => [s.st.start, s.st.end]));
+    tl.x = axis.x;
+
+    el.append(h('p', { class: 'lead ss-lead' }, 'Each block is one model step (one call to the LLM). Colours show what that step spent its time on. One row per agent: the main agent on top, each subagent below. Long idle stretches are squeezed (dashed lines). Click a block, a red marker or a row in the step list to inspect it.'));
+
+    // ---- gantt ----
+    const gc = h('section', { class: 'ss-card ss-gantt-card' });
+    gc.append(h('div', { class: 'ss-toolbar' },
+      h('div', { class: 'rt-legend' },
+        TIME_PARTS.map(([, l, c, help]) => h('span', { title: help }, h('span', { class: 'dot', style: `background:${c}` }), ' ', l)),
+        WAIT_PARTS.map(([, l, c, help]) => h('span', { title: help }, h('span', { class: 'dot', style: `background:${c}` }), ' ', l)),
+        h('span', { style: 'color:var(--bad)' }, '▼ hotspot')),
+      h('span', { class: 'spacer' }),
+      h('span', { class: 'hintp' }, 'Zoom'),
+      h('button', { class: 'chip', onclick: () => setZoom(tl.zoom / 1.6) }, '−'),
+      h('button', { class: 'chip', onclick: () => setZoom(1) }, 'fit'),
+      h('button', { class: 'chip', onclick: () => setZoom(tl.zoom * 1.6) }, '+')));
+    const inner = h('div', { class: 'tl-inner', style: `width:${tl.zoom * 100}%` });
+    // time axis (idle squeezed, so this is "agent clock", not wall clock)
+    const axisTrack = h('div', { class: 'tl-track tl-axis', title: 'Elapsed time with idle stretches squeezed' });
+    const stepMs = [10e3, 30e3, 60e3, 120e3, 300e3, 600e3, 900e3, 1800e3, 3600e3].find(s => axis.total / s <= 8 * tl.zoom) || 3600e3;
+    for (let ms = 0; ms <= axis.total; ms += stepMs) axisTrack.append(h('span', { class: 'tl-tick', style: `left:${ms / axis.total * 100}%` }, fmtClock(ms)));
+    inner.append(h('div', { class: 'tl-row' }, h('div', { class: 'tl-label' }), axisTrack));
+    tl.lanes.forEach((ln, li) => {
+      const track = h('div', { class: 'tl-track' });
+      for (const g of axis.gaps) track.append(h('span', { class: 'tl-gap', style: `left:${axis.x(g.a)}%`, title: `idle ${fmtMs(g.real)} (squeezed)` }));
+      tl.steps.forEach((s, gi) => {
+        if (s.lane !== li) return;
+        const st = s.st, x0 = axis.x(st.start), x1 = axis.x(st.end);
+        const blk = h('span', { class: 'tl-step', 'data-g': gi, style: `left:${x0}%;width:${Math.max(0.12, x1 - x0)}%`, title: `step ${gi + 1} · ${fmtMs(workMs(st))} · ${stepSummary(s)}`, onclick: () => setStep(gi) });
+        if (st.waitMs) blk.append(h('i', { style: `left:0;width:${Math.min(100, st.waitMs / Math.max(1, st.end - st.start) * 100)}%;background:#64748b` }));
+        for (const it of st.items) {
+          if (it.type === 'text') continue;
+          const c = it.type === 'think' ? SPAN_COLOR.think : it.type === 'agent' ? SPAN_COLOR.agent : it.type === 'ask' ? '#334155' : SPAN_COLOR.exec;
+          const a = axis.x(it.start), b = axis.x(it.end || it.start);
+          const span = Math.max(0.0001, x1 - x0);
+          blk.append(h('i', { style: `left:${(a - x0) / span * 100}%;width:${Math.max(1, (b - a) / span * 100)}%;background:${c}` }));
+        }
+        track.append(blk);
+      });
+      for (const f of tl.hot) if (f.traceId === ln.trace.id && f.step != null) {
+        const st = ln.trace.steps[f.step]; if (!st) continue;
+        track.append(h('span', { class: 'tl-hot', style: `left:${axis.x(st.start)}%`, title: `${(HOT_INFO[f.type] || [f.type])[0]}: ${f.detail}`, onclick: () => setStep(hotStepIndex(f)) }));
+      }
+      track.append(h('span', { class: 'tl-cur' }));
+      inner.append(h('div', { class: 'tl-row' + (ln.main ? ' main' : '') },
+        h('div', { class: 'tl-label', title: ln.sub },
+          h('div', null, h('span', { class: 'dot', style: `background:${ln.main ? 'var(--accent)' : SPAN_COLOR.agent}` }), ' ', h('b', null, ln.label), ' ', variantChip(ln.trace.variant, !ln.main && t.variant && ln.trace.variant && ln.trace.variant !== t.variant)),
+          h('small', null, ln.sub)),
+        track));
+    });
+    gc.append(h('div', { class: 'tl-scroll' }, inner));
+    el.append(gc);
+
+    // ---- step list + detail ----
+    const laneSel = h('select', { class: 'rt-filter', 'aria-label': 'Agent', onchange: (e) => { rtState.lane = e.target.value; fillSteps(); } },
+      h('option', { value: 'all' }, 'All agents'),
+      tl.lanes.map((ln, i) => h('option', { value: String(i), ...(rtState.lane === String(i) ? { selected: '' } : {}) }, `${ln.label}${ln.main ? ' (main)' : ' — ' + ln.sub.slice(0, 40)}`)));
+    const filt = h('div', { class: 'ss-seg' }, [['all', 'All steps'], ['slow', `Slow (≥ ${SLOW_STEP_MS / 1000} s)`], ['hot', 'Hotspots']].map(([k, l]) =>
+      h('button', { class: 'stab' + (rtState.stepFilter === k ? ' active' : ''), onclick: (e) => { rtState.stepFilter = k; filt.querySelectorAll('.stab').forEach(b => b.classList.toggle('active', b === e.currentTarget)); fillSteps(); } }, l)));
+    const list = h('div', { class: 'tl-list', id: 'tl-list' });
+    const left = h('section', { class: 'ss-card tl-left' }, h('h3', null, 'Steps'), h('div', { class: 'ss-toolbar' }, filt, laneSel), list);
+    const right = h('section', { class: 'ss-card tl-right' },
+      h('div', { class: 'rt-player' },
+        h('button', { class: 'chip', title: 'First step (Home)', onclick: () => setStep(0) }, '⏮'),
+        h('button', { class: 'chip', title: 'Previous step (←)', onclick: () => setStep(tl.cur - 1) }, '◀'),
+        h('button', { class: 'chip', id: 'rt-play', title: 'Play (Space)', onclick: togglePlay }, '▶ Play'),
+        h('button', { class: 'chip', title: 'Next step (→)', onclick: () => setStep(tl.cur + 1) }, '▶'),
+        h('button', { class: 'chip', title: 'Last step (End)', onclick: () => setStep(tl.steps.length - 1) }, '⏭'),
+        h('button', { class: 'chip', title: 'Next hotspot (N)', onclick: nextHot }, 'Next hotspot'),
+        h('select', { class: 'rt-filter rt-speed', 'aria-label': 'Playback speed', onchange: (e) => { tl.speed = Number(e.target.value); if (tl.timer) { stopPlay(); togglePlay(); } } },
+          [[2000, 'Slow'], [1000, 'Normal'], [400, 'Fast']].map(([v, l]) => h('option', { value: v, ...(tl.speed === v ? { selected: '' } : {}) }, l))),
+        h('span', { class: 'rt-num', id: 'rt-stepno' })),
+      h('input', { type: 'range', min: '0', max: String(tl.steps.length - 1), value: String(tl.cur), class: 'rt-slider', oninput: (e) => setStep(Number(e.target.value)) }),
+      h('div', { class: 'hintp' }, 'Keys: ← → step · Space play · N next hotspot'),
+      h('div', { class: 'rt-stepcard', id: 'rt-stepcard' }));
+    el.append(h('div', { class: 'tl-split' }, left, right));
+    fillSteps();
+    setStep(tl.cur);
+  }
+
+  function setZoom(z) {
+    tl.zoom = Math.max(1, Math.min(20, z));
+    const g = tl.cur;
+    renderSession();
+    setStep(g);
+    const blk = document.querySelector(`.tl-step[data-g="${g}"]`);
+    blk?.scrollIntoView({ block: 'nearest', inline: 'center' });
+  }
+
+  function fillSteps() {
+    const list = document.getElementById('tl-list');
+    if (!list) return;
+    list.innerHTML = '';
+    const hotSet = new Map();
+    for (const f of tl.hot) { const g = hotStepIndex(f); if (g >= 0) { if (!hotSet.has(g)) hotSet.set(g, []); hotSet.get(g).push(f); } }
+    let shown = 0;
+    tl.steps.forEach((s, g) => {
+      if (rtState.lane !== 'all' && String(s.lane) !== rtState.lane) return;
+      if (rtState.stepFilter === 'slow' && workMs(s.st) < SLOW_STEP_MS) return;
+      if (rtState.stepFilter === 'hot' && !hotSet.has(g)) return;
+      shown++;
+      const st = s.st, dur = Math.max(1, st.end - st.start), ln = tl.lanes[s.lane];
+      list.append(h('button', { class: 'tl-item' + (g === tl.cur ? ' on' : ''), 'data-g': g, onclick: () => setStep(g) },
+        h('span', { class: 'tl-n' }, '#' + (g + 1)),
+        h('span', { class: 'tl-main' },
+          h('span', { class: 'tl-who' }, h('span', { class: 'dot', style: `background:${ln.main ? 'var(--accent)' : SPAN_COLOR.agent}` }), ' ', ln.label, h('span', { class: 'muted' }, ' · ' + fmtTime(st.start))),
+          h('span', { class: 'tl-what' }, stepSummary(s)),
+          hotSet.has(g) ? h('span', { class: 'tl-hots' }, hotSet.get(g).map(f => h('span', { class: 'rt-flag ' + (f.inferred ? 'f-inferred' : 'f-redone') }, (HOT_INFO[f.type] || [f.type])[0]))) : null),
+        h('span', { class: 'tl-dur' + (workMs(st) >= SLOW_STEP_MS ? ' slow' : '') },
+          h('b', null, fmtMs(workMs(st))),
+          h('span', { class: 'tl-mbar' }, [...TIME_PARTS, ...WAIT_PARTS].map(([k, , c]) => st[k] ? h('i', { style: `width:${st[k] / dur * 100}%;background:${c}` }) : null)))));
+    });
+    if (!shown) list.append(h('div', { class: 'hintp', style: 'padding:12px' }, 'No step matches this filter.'));
+  }
+
+  function hotStepIndex(f) {
+    return tl.steps.findIndex(s => s.trace.id === f.traceId && s.st.index === f.step);
+  }
+  function nextHot() {
+    const gs = tl.hot.map(hotStepIndex).filter(g => g > tl.cur).sort((a, b) => a - b);
+    if (gs.length) setStep(gs[0]);
+  }
+  function togglePlay() {
+    if (tl.timer) return stopPlay();
+    const b = document.getElementById('rt-play'); if (b) b.textContent = '⏸ Pause';
+    tl.timer = setInterval(() => { if (tl.cur >= tl.steps.length - 1) stopPlay(); else setStep(tl.cur + 1); }, tl.speed);
+  }
+  function stopPlay() {
+    if (tl.timer) clearInterval(tl.timer);
+    tl.timer = null;
+    const b = document.getElementById('rt-play'); if (b) b.textContent = '▶ Play';
+  }
+
+  function setStep(g) {
+    if (!tl.steps.length || g < 0) return;
+    tl.cur = Math.max(0, Math.min(tl.steps.length - 1, g));
+    const { st, lane, trace } = tl.steps[tl.cur];
+    document.querySelectorAll('.tl-step.on, .tl-item.on').forEach(b => b.classList.remove('on'));
+    document.querySelector(`.tl-step[data-g="${tl.cur}"]`)?.classList.add('on');
+    const item = document.querySelector(`.tl-item[data-g="${tl.cur}"]`);
+    if (item) { item.classList.add('on'); const list = item.parentElement; const r = item.getBoundingClientRect(), lr = list.getBoundingClientRect(); if (r.top < lr.top || r.bottom > lr.bottom) list.scrollTop += r.top - lr.top - lr.height / 2; }
+    document.querySelectorAll('.tl-cur').forEach(c => { c.style.left = tl.x(st.start) + '%'; });
+    const slider = document.querySelector('.rt-slider'); if (slider) slider.value = String(tl.cur);
+    const no = document.getElementById('rt-stepno'); if (no) no.textContent = `step ${tl.cur + 1} of ${tl.steps.length}`;
+
+    const card = document.getElementById('rt-stepcard');
+    if (!card) return;
+    card.innerHTML = '';
+    const dur = Math.max(1, st.end - st.start);
+    const ln = tl.lanes[lane];
+    const prev = tl.steps.slice(0, tl.cur).reverse().find(s => s.trace === trace);
+    const prompt = trace.prompts.find(p => p.turn === st.turn);
+    const findings = tl.hot.filter(f => f.traceId === trace.id && f.step === st.index);
+    card.append(h('div', { class: 'sc-head' },
+      h('div', { class: 'sc-title' }, `Step ${tl.cur + 1}`),
+      h('div', { class: 'sc-sub' }, h('span', { class: 'dot', style: `background:${ln.main ? 'var(--accent)' : SPAN_COLOR.agent}` }), ' ', h('b', null, ln.label), ln.main ? '' : ` — ${ln.sub}`,
+        h('br'), `step ${st.index + 1} of this agent · ${fmtTime(st.start)}`, st.error ? h('span', { class: 'rt-err' }, ' · ' + st.error) : null),
+      h('div', { class: 'sc-dur' }, fmtMs(workMs(st)), h('small', null, 'agent work'))));
+    if (findings.length) card.append(h('div', { class: 'sc-find' }, findings.map(f => h('div', { class: 'sc-f' + (f.inferred ? ' inferred' : '') },
+      h('b', null, (HOT_INFO[f.type] || [f.type])[0]), f.inferred ? ' (inferred)' : '', h('div', null, f.detail), h('div', { class: 'hintp' }, (HOT_INFO[f.type] || [, ''])[1])))));
+    const parts = [...TIME_PARTS, ...WAIT_PARTS].filter(([k]) => st[k] >= 1);
+    card.append(h('div', { class: 'sc-time' },
+      h('div', { class: 'ss-bigbar sm' }, parts.map(([k, l, c]) => h('i', { style: `width:${st[k] / dur * 100}%;background:${c}`, title: `${l}: ${fmtMs(st[k])}` }))),
+      h('div', { class: 'sc-parts' }, parts.map(([k, l, c]) => h('span', null, h('span', { class: 'dot', style: `background:${c}` }), ' ', l, ' ', h('b', null, fmtMs(st[k])))))));
+    const ctxDelta = prev ? st.tokens.context - prev.st.tokens.context : 0;
+    card.append(h('div', { class: 'sc-stats' },
+      stat('Context read', fmtTok(st.tokens.context), prev ? `${ctxDelta >= 0 ? '+' : ''}${fmtTok(ctxDelta)} vs previous` : 'first step', 'Tokens the model had to read for this call. Grows as the conversation grows.'),
+      stat('Output', fmtTok(st.tokens.output), 'tokens written'),
+      stat('Reasoning', fmtTok(st.tokens.reasoning), 'thinking tokens'),
+      stat('Cost', '$' + st.cost.toFixed(4), st.finish || ''),
+      st.variant || st.model ? stat('Thinking level', st.variant || '–', st.model || '', VARIANT_TIP) : null));
+    if (prompt && (!prev || prev.st.turn !== st.turn)) {
+      card.append(h('div', { class: 'rt-prompt' }, h('span', { class: 'rt-plabel' }, trace.parentId ? 'task' : 'you asked'),
+        h('span', { class: 'rt-ptext' }, prompt.text.length > 400 ? prompt.text.slice(0, 400) + '…' : prompt.text)));
+    }
+    card.append(h('div', { class: 'sc-label' }, 'What happened, in order'));
+    const list = h('ol', { class: 'sc-items' });
+    for (const it of st.items) {
+      if (it.type === 'think') {
+        const th = trace.thinking[it.ref] || {};
+        list.append(h('li', { class: 'sc-item think' },
+          h('div', { class: 'sc-ih' }, h('span', { class: 'dot', style: `background:${SPAN_COLOR.think}` }), h('b', null, 'Thinking'), h('span', { class: 'rt-num' }, fmtMs(it.end - it.start))),
+          th.text ? h('details', { class: 'rt-think' }, h('summary', null, 'Read the reasoning (as written by the model — not a verified explanation)'), h('pre', null, th.text))
+            : h('div', { class: 'hintp' }, RT.thinking ? 'No reasoning text stored for this block.' : 'Reasoning text not included — regenerate with --include-thinking to read it.')));
+      } else if (it.type === 'tool' || it.type === 'agent' || it.type === 'ask') {
+        const sp = trace.spans.find(z => z.id === it.ref);
+        if (!sp) continue;
+        const detail = sp.input.description || sp.input.file || sp.input.pattern || sp.input.command || sp.input.url || sp.input.query || '';
+        const child = sp.childTraceId ? tl.lanes.findIndex(l => l.trace.id === sp.childTraceId) : -1;
+        list.append(h('li', { class: 'sc-item' + (sp.status === 'error' ? ' err' : '') },
+          h('div', { class: 'sc-ih' }, h('span', { class: 'dot', style: `background:${SPAN_COLOR[sp.kind] || SPAN_COLOR.other}` }),
+            h('b', null, sp.kind === 'agent' ? 'Subagent ' + sp.name : sp.kind === 'skill' ? 'Skill ' + sp.name : it.type === 'ask' ? 'Asked you' : sp.tool),
+            h('span', { class: 'rt-num' }, fmtMs(sp.end - sp.start))),
+          detail ? h('div', { class: 'sc-detail' }, detail) : null,
+          sp.status === 'error' ? h('div', { class: 'rt-err wrap' }, sp.error || 'error') : null,
+          child > 0 ? h('button', { class: 'linkbtn', onclick: () => { const g = tl.steps.findIndex(s => s.lane === child && s.st.start >= sp.start); if (g >= 0) setStep(g); } }, 'Follow into the subagent →') : null));
+      } else if (it.type === 'text') {
+        list.append(h('li', { class: 'sc-item' },
+          h('div', { class: 'sc-ih' }, h('span', { class: 'dot', style: 'background:#94a3b8' }), h('b', null, 'Wrote')),
+          h('pre', { class: 'rt-out-text' }, it.text)));
+      }
+    }
+    if (!st.items.length) list.append(h('li', { class: 'hintp' }, 'The model returned nothing in this step.'));
+    card.append(list);
+  }
+  function stat(label, value, sub, title) {
+    return h('div', { class: 'sc-stat', title: title || null }, h('div', { class: 'kl' }, label), h('div', { class: 'sv' }, value), sub ? h('div', { class: 'ks' }, sub) : null);
+  }
+
+  document.addEventListener('keydown', (ev) => {
+    if (state.view !== 'session' || rtState.tab !== 'timeline' || !tl.steps.length) return;
+    if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+    const tg = ev.target;
+    if (tg && ((tg.tagName === 'INPUT' && tg.type !== 'range') || tg.tagName === 'TEXTAREA' || tg.tagName === 'SELECT')) return;
+    if (ev.key === 'ArrowRight') { setStep(tl.cur + 1); ev.preventDefault(); }
+    else if (ev.key === 'ArrowLeft') { setStep(tl.cur - 1); ev.preventDefault(); }
+    else if (ev.key === 'Home') { setStep(0); ev.preventDefault(); }
+    else if (ev.key === 'End') { setStep(tl.steps.length - 1); ev.preventDefault(); }
+    else if (ev.key === 'n' || ev.key === 'N') nextHot();
+    else if (ev.key === ' ') { togglePlay(); ev.preventDefault(); }
+  });
+
   /* ================= keyboard help ================= */
   const SHORTCUTS = [
     ['/', 'Search (Enter jumps to the first match, Esc clears)'],
-    ['1 – 4', 'Diagram · Graph · Hierarchy · Insights'],
+    ['1 – 5', 'Diagram · Graph · Hierarchy · Insights · Runtime'],
     ['F', 'Fit everything into view'],
     ['+  −  0', 'Zoom in · out · 100%'],
     ['R', 'Re-layout'],
@@ -1498,7 +2249,9 @@
   /* ================= boot ================= */
   renderInsights();
   renderHierarchy();
+  renderRuntime();
   renderDrawer();
+  if (location.hash.startsWith('#session/')) route();
   resize();
   updateZoomLabel();
   if (!N.length) {

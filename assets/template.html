@@ -31,6 +31,7 @@
     <button class="tab" data-view="graph" role="tab" title="Graph (2)">Graph</button>
     <button class="tab" data-view="hierarchy" role="tab" title="Hierarchy (3)">Hierarchy</button>
     <button class="tab" data-view="insights" role="tab" title="Insights (4)">Insights <span class="pill" id="insightCount">0</span></button>
+    <button class="tab" data-view="runtime" role="tab" title="Runtime (5)">Runtime <span class="pill" id="runtimeCount">–</span></button>
     <button class="chip" id="fitBtn" title="Fit everything into view (F)">⤢ Fit</button>
     <button class="chip" id="relayoutBtn" title="Shuffle the layout again (R)">⟳ Re-layout</button>
     <button class="chip" id="groupBtn" title="Group cards by scope (G)" aria-pressed="false">▦ Group by scope</button>
@@ -65,6 +66,14 @@
 
     <section id="view-insights" class="view">
       <div class="panel" id="insights"></div>
+    </section>
+
+    <section id="view-runtime" class="view">
+      <div class="panel" id="runtime"></div>
+    </section>
+
+    <section id="view-session" class="view">
+      <div class="panel ss" id="session"></div>
     </section>
   </main>
 
