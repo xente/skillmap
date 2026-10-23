@@ -190,13 +190,6 @@ frontmatter as a table, headings, lists, tables, code and links:
 
 ![Definition reader](docs/images/reader.png)
 
-### Graph
-
-The classic force-directed map. Color = kind, size = connectivity, red ring =
-unused, amber ring = organizer.
-
-![Graph view](docs/images/graph.png)
-
 ### Hierarchy
 
 Organizers expand into their children (recursively), followed by agents → the
@@ -217,7 +210,7 @@ hiding it are lifted automatically).
 Filters by kind and scope, plus the search box, isolate one tool or hunt for a
 name. When something is hidden a banner says so, with a **Show all** button.
 
-**Export:** **⤓ PNG** saves the current Diagram or Graph view;
+**Export:** **⤓ PNG** saves the current Diagram view;
 **⤓ JSON** saves the full graph payload (nodes, edges, analysis).
 
 ## What it looks at
@@ -320,6 +313,10 @@ an adapter update — everything that touches it lives in
   after it loaded, time and tokens, against the all-sessions baseline
 - **Subagents** — per subagent type: calls, flagged share, failures, average
   tool calls, time and tokens
+- **MCP servers** — per server: calls, errors, sessions, average time and
+  which of its tools were called; servers configured but **never used** (their
+  tool lists still go out with every prompt) and servers seen in sessions but
+  no longer in the config
 - **Defined but never ran** — skills and agents in the project that no session
   used (compare with *Unused skills*, which is about references)
 
@@ -328,7 +325,8 @@ an adapter update — everything that touches it lives in
 - **Overview** — where the time went (waiting for the model, thinking, tools,
   writing; waiting on a subagent or on you is shown apart so nothing is
   counted twice), **Models & thinking level** per agent, every hotspot,
-  every delegation and what you asked
+  every delegation, the **MCP servers used** (by tool and by agent) and what
+  you asked
 - **Timeline · replay** — a Gantt chart with one row per agent (main agent and
   each subagent), one block per model step coloured by what it spent its
   time on, with zoom; a readable step list (filter by slow steps, hotspots or
@@ -336,7 +334,25 @@ an adapter update — everything that touches it lives in
   tokens, cost, thinking level, and every thinking block, tool call and reply
   in order
 - **Call tree** — prompts, skills, subagents (expandable into their own work),
-  errors and thinking, with why each skill/subagent ran
+  MCP calls, errors and thinking, with why each skill/subagent ran
+
+**How MCP calls are recognised.** OpenCode does not mark a tool call as MCP in
+its database. An agent can reach an MCP server in two ways, and SkillMap counts
+both:
+
+- **direct** — the tool is named `<server>_<tool>`. SkillMap reads the server
+  names from OpenCode's config and matches the prefix.
+- **via code** — the agent runs code with OpenCode's `execute` tool and that
+  code calls `<server>.<tool>`. OpenCode records those calls (name and status,
+  no timing) on the `execute` call; SkillMap splits the block's time evenly
+  between them. `opencode.*`, `fetch` and `search` there are OpenCode's own.
+
+Servers come from the global config (`~/.config/opencode/opencode.json[c]`,
+`$OPENCODE_CONFIG`) and every `opencode.json[c]` / `.opencode/opencode.json[c]`
+from each session's folder up to the scanned folder. Only the server name,
+type and `enabled` flag are read — never the command, URL, headers or
+environment. A server that shows up in sessions but is in none of those
+configs is marked *not in config*.
 
 ### What it detects
 
@@ -421,7 +437,7 @@ found, nothing is written and the command exits with an error.
 | Key | Action |
 | --- | --- |
 | `/` | Search (Enter jumps to the first match, Esc clears) |
-| `1`–`5` | Diagram · Graph · Hierarchy · Insights · Runtime |
+| `1`–`4` | Diagram · Hierarchy · Insights · Runtime |
 | `F` / `R` / `G` | Fit · Re-layout · Group by scope |
 | `+` `-` `0` | Zoom in · out · 100% |
 | `O` | Read the selected definition |
