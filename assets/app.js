@@ -1,7 +1,6 @@
 /* SkillMap visualizer — vanilla JS, no dependencies.
-   Two canvas renderers share one stage + drawer:
-     • Diagram  — UML-style draggable cards with agent/skill info
-     • Graph    — classic force-directed node map (for comparison) */
+   The Diagram canvas (UML-style draggable cards with agent/skill info) shares
+   the stage + drawer with the Hierarchy, Insights and Runtime views. */
 (() => {
   const DATA = JSON.parse(document.getElementById('skillmap-data').textContent);
   const N = DATA.nodes, E = DATA.edges, A = DATA.analysis, META = DATA.meta;
@@ -21,7 +20,6 @@
 
   const state = {
     view: 'diagram',
-    renderMode: 'diagram',
     query: '',
     kinds: new Set(['skill', 'agent', 'instructions']),
     scopes: new Set(Object.keys(A.scopes)),
@@ -106,7 +104,7 @@
   if (groupBtn) groupBtn.addEventListener('click', () => {
     state.groupBy = !state.groupBy;
     groupBtn.setAttribute('aria-pressed', String(state.groupBy));
-    if (state.renderMode === 'diagram') relayout();
+    relayout();
     invalidate();
   });
   searchEl.addEventListener('keydown', (ev) => {
@@ -127,15 +125,14 @@
     if (document.querySelector('.reader-overlay')) return;
     const t = ev.target;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-    const onCanvas = state.view === 'diagram' || state.view === 'graph';
+    const onCanvas = state.view === 'diagram';
     const k = ev.key;
     if (k === '/') { ev.preventDefault(); searchEl.focus(); searchEl.select(); }
     else if (k === 'Escape') { if (state.selected) select(null); }
     else if (k === '1') setView('diagram');
-    else if (k === '2') setView('graph');
-    else if (k === '3') setView('hierarchy');
-    else if (k === '4') setView('insights');
-    else if (k === '5') setView('runtime');
+    else if (k === '2') setView('hierarchy');
+    else if (k === '3') setView('insights');
+    else if (k === '4') setView('runtime');
     else if (k === '?') toggleHelp();
     else if ((k === 'o' || k === 'O') && state.selected) openReader(state.selected);
     else if (!onCanvas) return;
@@ -144,7 +141,7 @@
     else if (k === '+' || k === '=') zoomBy(1.25);
     else if (k === '-' || k === '_') zoomBy(0.8);
     else if (k === '0') zoomReset();
-    else if ((k === 'g' || k === 'G') && state.view === 'diagram') { if (groupBtn) groupBtn.click(); }
+    else if (k === 'g' || k === 'G') { if (groupBtn) groupBtn.click(); }
     else return;
     invalidate();
   });
@@ -152,26 +149,21 @@
   document.querySelectorAll('.tab').forEach((tab) => tab.addEventListener('click', () => setView(tab.dataset.view)));
   function setView(view) {
     state.view = view;
-    const isCanvas = view === 'diagram' || view === 'graph';
+    const isCanvas = view === 'diagram';
     for (const bid of ['fitBtn', 'relayoutBtn', 'zoomOut', 'zoomIn', 'zoomReset', 'exportPng']) {
       const b = document.getElementById(bid);
       if (b) b.style.display = isCanvas ? '' : 'none';
     }
     const gb = document.getElementById('groupBtn');
-    if (gb) gb.style.display = view === 'diagram' ? '' : 'none';
+    if (gb) gb.style.display = isCanvas ? '' : 'none';
     const tabView = view === 'session' ? 'runtime' : view; // a session page lives under Runtime
     document.querySelectorAll('.tab').forEach(t => { t.classList.toggle('active', t.dataset.view === tabView); t.setAttribute('aria-selected', String(t.dataset.view === tabView)); });
     filtersEl.style.display = view === 'runtime' || view === 'session' ? 'none' : '';
     if (view !== 'session' && location.hash.startsWith('#session/')) history.replaceState(null, '', location.pathname + location.search);
     document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', isCanvas ? v.id === 'view-canvas' : v.id === 'view-' + view));
     if (isCanvas) {
-      state.renderMode = view;
-      pos = layouts[view];
-      document.getElementById('hint').textContent = view === 'diagram'
-        ? 'Drag to move · scroll to zoom · double-click to zoom in · ? for shortcuts'
-        : 'Drag to pan · scroll to zoom · click a node for details · ? for shortcuts';
       resize();
-      if (!laidOut.has(view)) { relayout(); laidOut.add(view); }
+      if (!laidOut) { relayout(); laidOut = true; }
       else { rebuild(); fitView(); }
     }
     invalidate();
@@ -180,15 +172,14 @@
   /* ================= canvas + layouts ================= */
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d');
-  const layouts = { diagram: new Map(), graph: new Map() };
-  let pos = layouts.diagram;
+  const pos = new Map();
   let visible = new Set();
   let links = [];
   let pan = { x: 0, y: 0 }, zoom = 1;
   let dpr = 1, W = 0, H = 0;
   let dragging = null, panning = null;
   const boxCache = new Map();
-  const laidOut = new Set();
+  let laidOut = false;
   // Redraw only when something changed, instead of repainting every frame.
   let dirty = true;
   function invalidate() { dirty = true; }
@@ -209,14 +200,14 @@
   // Existing nodes are never moved — the layout stays put.
   function seedMissing() {
     const ids = [...visible];
-    const R = (state.renderMode === 'diagram' ? 78 : 34) * Math.sqrt(Math.max(ids.length, 1));
+    const R = 78 * Math.sqrt(Math.max(ids.length, 1));
     let i = 0;
     for (const id of ids) {
       if (!pos.has(id)) {
         const nb = E.find(e => (e.source === id && pos.has(e.target)) || (e.target === id && pos.has(e.source)));
         if (nb) {
           const p = pos.get(nb.source === id ? nb.target : nb.source);
-          const off = state.renderMode === 'diagram' ? 280 : 60;
+          const off = 280;
           pos.set(id, { x: p.x + (Math.random() - 0.5) * off * 2, y: p.y + (Math.random() - 0.5) * off * 2, vx: 0, vy: 0 });
           i++;
           continue;
@@ -259,12 +250,11 @@
   // One physics iteration.
   function physicsStep() {
     const ids = [...visible];
-    const dia = state.renderMode === 'diagram';
-    const grouped = state.groupBy && dia;
-    const kRep = grouped ? 16000 : (dia ? 150000 : 9000);
-    const L = grouped ? 190 : (dia ? 330 : 96);
-    const damp = dia ? 0.84 : 0.86;
-    const minD = grouped ? 0 : (dia ? 300 : 0);
+    const grouped = state.groupBy;
+    const kRep = grouped ? 16000 : 150000;
+    const L = grouped ? 190 : 330;
+    const damp = 0.84;
+    const minD = grouped ? 0 : 300;
     for (let a = 0; a < ids.length; a++) {
       const pa = pos.get(ids[a]);
       for (let b = a + 1; b < ids.length; b++) {
@@ -283,15 +273,15 @@
       const s = pos.get(e.source), t = pos.get(e.target);
       let dx = t.x - s.x, dy = t.y - s.y;
       const d = Math.hypot(dx, dy) || 0.01;
-      const f = (d - L) * (dia ? 0.012 : 0.02);
+      const f = (d - L) * 0.012;
       const fx = (dx / d) * f, fy = (dy / d) * f;
       s.vx += fx; s.vy += fy; t.vx -= fx; t.vy -= fy;
     }
-    const grav = dia ? 0.0012 : 0.0025;
-    const maxV = dia ? 10 : 12;
+    const grav = 0.0012;
+    const maxV = 10;
     // pull each card toward its scope's centroid so scopes cluster
     let cen = null;
-    if (state.groupBy && dia) {
+    if (state.groupBy) {
       cen = new Map();
       for (const id of ids) {
         const n = nodeById.get(id); const p = pos.get(id);
@@ -338,12 +328,12 @@
   }
   function toggleCollapse(scope) {
     if (state.collapsed.has(scope)) state.collapsed.delete(scope); else state.collapsed.add(scope);
-    if (state.groupBy && state.renderMode === 'diagram') { layout(); fitView(); }
+    if (state.groupBy) { layout(); fitView(); }
     invalidate();
   }
   // Click on a collapsed group's pill, or on an expanded group's header strip.
   function hitGroup(mx, my) {
-    if (!state.groupBy || state.renderMode !== 'diagram') return null;
+    if (!state.groupBy) return null;
     for (const [scope, ids] of scopeGroups()) {
       if (state.collapsed.has(scope)) {
         const p = project(collapsedCenter(ids));
@@ -384,11 +374,11 @@
   // Compute the layout once (synchronously) and freeze it. No ongoing animation.
   function layout() {
     seedMissing();
-    if (state.renderMode === 'diagram' && state.groupBy) { groupedLayout(); return; }
+    if (state.groupBy) { groupedLayout(); return; }
     const iters = Math.min(700, 200 + visible.size * 5);
     for (let k = 0; k < iters; k++) physicsStep();
     packIsolated();
-    if (state.renderMode === 'diagram') resolveOverlaps();
+    resolveOverlaps();
     for (const id of visible) { const p = pos.get(id); if (p) { p.vx = 0; p.vy = 0; } }
     invalidate();
   }
@@ -400,18 +390,17 @@
     for (const e of links) { linked.add(e.source); linked.add(e.target); }
     const lone = [...visible].filter(id => !linked.has(id)).sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
     if (!lone.length || lone.length === visible.size) return;
-    const dia = state.renderMode === 'diagram';
     let minX = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const id of linked) {
       if (!visible.has(id)) continue;
-      const p = pos.get(id); const hh = dia ? boxFor(nodeById.get(id)).h / 2 : 10; const hw = dia ? BOX.w / 2 : 10;
+      const p = pos.get(id); const hh = boxFor(nodeById.get(id)).h / 2; const hw = BOX.w / 2;
       minX = Math.min(minX, p.x - hw); maxX = Math.max(maxX, p.x + hw); maxY = Math.max(maxY, p.y + hh);
     }
-    const cellW = dia ? BOX.w + 40 : 110, cellH = dia ? 190 : 60;
+    const cellW = BOX.w + 40, cellH = 190;
     const cols = Math.max(1, Math.floor((maxX - minX) / cellW));
     const rowW = Math.min(cols, lone.length) * cellW;
     const x0 = (minX + maxX) / 2 - rowW / 2 + cellW / 2;
-    const y0 = maxY + (dia ? 140 : 70);
+    const y0 = maxY + 140;
     lone.forEach((id, i) => {
       const p = pos.get(id);
       p.x = x0 + (i % cols) * cellW; p.y = y0 + Math.floor(i / cols) * cellH; p.vx = 0; p.vy = 0;
@@ -493,11 +482,10 @@
   function reLayout() {
     pos.clear();
     relayout();
-    laidOut.add(state.renderMode);
+    laidOut = true;
   }
 
   function project(p) { return { x: p.x * zoom + pan.x, y: p.y * zoom + pan.y }; }
-  function radius(n) { return (5 + Math.min(n.degree || 0, 6) * 1.6) * Math.min(Math.max(zoom, 0.5), 1.6); }
 
   /* ---------- card layout for the diagram ---------- */
   const BOX = { w: 240, headerH: 32, padX: 12, padY: 10, gap: 5 };
@@ -584,49 +572,6 @@
     const neighbors = new Set();
     if (focus) { neighbors.add(focus); for (const e of links) { if (e.source === focus) neighbors.add(e.target); if (e.target === focus) neighbors.add(e.source); } }
     return { focus, neighbors };
-  }
-
-  function drawGraph() {
-    const { focus, neighbors } = focusSets();
-    for (const e of links) {
-      const s = pos.get(e.source), t = pos.get(e.target);
-      if (!s || !t) continue;
-      const ps = project(s), pt = project(t);
-      const near = focus && (e.source === focus || e.target === focus);
-      ctx.strokeStyle = EDGE_COLOR[e.type] || '#7c8aa3';
-      ctx.globalAlpha = focus ? (near ? 0.95 : 0.07) : 0.32;
-      ctx.lineWidth = near ? 2 : 1;
-      ctx.beginPath(); ctx.moveTo(ps.x, ps.y); ctx.lineTo(pt.x, pt.y); ctx.stroke();
-    }
-    ctx.globalAlpha = 1;
-    for (const id of visible) {
-      const n = nodeById.get(id); const p = pos.get(id); if (!p) continue;
-      const sp = project(p); const r = radius(n);
-      const dim = focus && !neighbors.has(id);
-      ctx.globalAlpha = dim ? 0.2 : 1;
-      if (id === state.selected || id === state.hover) {
-        ctx.beginPath(); ctx.arc(sp.x, sp.y, r + 7, 0, Math.PI * 2); ctx.fillStyle = 'rgba(99,102,241,.28)'; ctx.fill();
-      }
-      ctx.beginPath(); ctx.arc(sp.x, sp.y, r, 0, Math.PI * 2);
-      ctx.fillStyle = KIND_COLOR[n.kind] || '#888'; ctx.fill();
-      if (UNUSED.has(id)) { ctx.strokeStyle = '#f87171'; ctx.lineWidth = 2.4; ctx.stroke(); }
-      else if (n.isOrganizer) { ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 2; ctx.stroke(); }
-      else { ctx.strokeStyle = 'rgba(255,255,255,.28)'; ctx.lineWidth = 1; ctx.stroke(); }
-      ctx.globalAlpha = 1;
-    }
-    const many = visible.size > 110;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-    for (const id of visible) {
-      const n = nodeById.get(id); const p = pos.get(id); if (!p) continue;
-      const isFocus = id === state.selected || id === state.hover;
-      if (many && !isFocus && (n.degree || 0) < 2) continue;
-      const sp = project(p); const r = radius(n);
-      ctx.globalAlpha = (focus && !neighbors.has(id)) ? 0.25 : 1;
-      ctx.fillStyle = isFocus ? '#ffffff' : '#9fb0c9';
-      ctx.font = '11px -apple-system,Inter,Segoe UI,sans-serif';
-      ctx.fillText(n.name, sp.x, sp.y + r + 3);
-    }
-    ctx.globalAlpha = 1;
   }
 
   function rectEdge(cx, cy, dx, dy, hw, hh) {
@@ -790,7 +735,7 @@
   function draw() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
-    if (state.renderMode === 'diagram') drawDiagram(); else drawGraph();
+    drawDiagram();
   }
 
   function fitView() {
@@ -799,14 +744,12 @@
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const id of ids) {
       const p = pos.get(id); if (!p) continue;
-      let hw, hh;
-      if (state.renderMode === 'diagram') { const b = boxFor(nodeById.get(id)); hw = b.w / 2; hh = b.h / 2; }
-      else { const r = radius(nodeById.get(id)) + 22; hw = r; hh = r; }
+      const b = boxFor(nodeById.get(id)); const hw = b.w / 2, hh = b.h / 2;
       minX = Math.min(minX, p.x - hw); maxX = Math.max(maxX, p.x + hw);
       minY = Math.min(minY, p.y - hh); maxY = Math.max(maxY, p.y + hh);
     }
     // grouped mode draws container boxes (with a header) around the cards — frame those too
-    if (state.renderMode === 'diagram' && state.groupBy) {
+    if (state.groupBy) {
       for (const [scope, gids] of scopeGroups()) {
         if (state.collapsed.has(scope)) continue;
         const b = groupBounds(gids, 26, 30);
@@ -852,20 +795,20 @@
   }
   function safeName(s) { return String(s || 'project').replace(/[^a-z0-9._-]+/gi, '-'); }
   function exportPNG() {
-    if (state.view !== 'diagram' && state.view !== 'graph') return;
+    if (state.view !== 'diagram') return;
     const out = document.createElement('canvas');
     out.width = canvas.width; out.height = canvas.height;
     const octx = out.getContext('2d');
     octx.fillStyle = '#0b0f17'; octx.fillRect(0, 0, out.width, out.height);
     octx.drawImage(canvas, 0, 0);
-    out.toBlob((blob) => { if (blob) downloadBlob(blob, `skillmap-${safeName(META.projectLabel)}-${state.renderMode}.png`); }, 'image/png');
+    out.toBlob((blob) => { if (blob) downloadBlob(blob, `skillmap-${safeName(META.projectLabel)}-diagram.png`); }, 'image/png');
   }
   function exportJSON() {
     downloadBlob(new Blob([JSON.stringify(DATA, null, 2)], { type: 'application/json' }), `skillmap-${safeName(META.projectLabel)}.json`);
   }
 
   function loop() {
-    if (dirty && (state.view === 'diagram' || state.view === 'graph')) { dirty = false; draw(); }
+    if (dirty && state.view === 'diagram') { dirty = false; draw(); }
     requestAnimationFrame(loop);
   }
 
@@ -884,17 +827,12 @@
     let best = null, bestD = Infinity;
     for (const id of visible) {
       const n = nodeById.get(id); const p = pos.get(id); if (!p) continue;
-      if (state.renderMode === 'diagram' && state.groupBy && state.collapsed.has(n.scope)) continue;
+      if (state.groupBy && state.collapsed.has(n.scope)) continue;
       const sp = project(p);
-      if (state.renderMode === 'diagram') {
-        const b = boxFor(n);
-        const inside = Math.abs(mx - sp.x) <= (b.w / 2) * zoom && Math.abs(my - sp.y) <= (b.h / 2) * zoom;
-        const d = Math.hypot(mx - sp.x, my - sp.y);
-        if (inside && d < bestD) { bestD = d; best = id; }
-      } else {
-        const d = Math.hypot(sp.x - mx, sp.y - my);
-        if (d < radius(n) + 6 && d < bestD) { bestD = d; best = id; }
-      }
+      const b = boxFor(n);
+      const inside = Math.abs(mx - sp.x) <= (b.w / 2) * zoom && Math.abs(my - sp.y) <= (b.h / 2) * zoom;
+      const d = Math.hypot(mx - sp.x, my - sp.y);
+      if (inside && d < bestD) { bestD = d; best = id; }
     }
     return best;
   }
@@ -971,9 +909,9 @@
     }
     if (state.collapsed.has(n.scope)) { state.collapsed.delete(n.scope); if (state.groupBy) layout(); }
     select(id);
-    setView(state.renderMode);
+    setView('diagram');
     const p = pos.get(id);
-    if (p) { zoom = state.renderMode === 'diagram' ? Math.max(zoom, 0.85) : Math.max(zoom, 0.9); pan = { x: W / 2 - p.x * zoom, y: H / 2 - p.y * zoom }; }
+    if (p) { zoom = Math.max(zoom, 0.85); pan = { x: W / 2 - p.x * zoom, y: H / 2 - p.y * zoom }; }
     updateZoomLabel();
     invalidate();
   }
@@ -993,7 +931,7 @@
       drawer.innerHTML = '';
       drawer.append(h('div', { class: 'drawer-empty' },
         h('h2', null, 'Details'),
-        h('p', { html: 'Select a card or node — in <b>Diagram</b>, <b>Graph</b> or <b>Insights</b> — to inspect it, its path and every connection.' })));
+        h('p', { html: 'Select a card — in <b>Diagram</b> or <b>Insights</b> — to inspect it, its path and every connection.' })));
       return;
     }
     const n = nodeById.get(id);
@@ -1496,7 +1434,7 @@
 
   /* ================= runtime (session traces) ================= */
   const RT = DATA.runtime;
-  const SPAN_COLOR = { agent: '#38bdf8', skill: '#a78bfa', read: '#64748b', search: '#64748b', edit: '#34d399', exec: '#f59e0b', web: '#f472b6', other: '#7c8aa3', think: '#e879f9' };
+  const SPAN_COLOR = { agent: '#38bdf8', skill: '#a78bfa', read: '#64748b', search: '#64748b', edit: '#34d399', exec: '#f59e0b', web: '#f472b6', mcp: '#2dd4bf', other: '#7c8aa3', think: '#e879f9' };
   const FLAG_LABEL = { failed: 'failed', cancelled: 'cancelled', trivial: 'trivial', lookup: 'simple lookup', redone: 'work redone', duplicate: 'duplicate' };
   const HOW_LABEL = { 'user-attached': 'you attached it', 'user-named': 'you named it', 'model-chose': 'model chose', 'subagent-chose': 'subagent chose' };
   const fmtMs = (ms) => ms >= 3600000 ? `${(ms / 3600000).toFixed(1)} h` : ms >= 60000 ? `${(ms / 60000).toFixed(1)} min` : ms >= 1000 ? `${(ms / 1000).toFixed(1)} s` : `${Math.round(ms)} ms`;
@@ -1583,7 +1521,7 @@
 
     root.append(h('div', { class: 'kpis' },
       kpi('Sessions', c.sessions, `${c.subagentSessions} subagent sessions`),
-      kpi('Tool calls', c.toolCalls, `${c.skillCalls} skill loads`),
+      kpi('Tool calls', c.toolCalls, `${c.skillCalls} skill loads · ${c.mcpCalls || 0} MCP calls`),
       kpi('Delegations', c.delegations, `${R.agents.length} subagent types`),
       kpi('Flagged delegations', w.delegations, c.delegations ? `${fmtPct(w.delegations / c.delegations)} of all delegations` : '', w.delegations ? 'bad' : 'ok'),
       kpi('Time in flagged', fmtMs(w.durationMs), 'upper bound', w.durationMs ? 'warn' : 'ok'),
@@ -1611,6 +1549,7 @@
     const grid = h('div', { class: 'rt-two' });
     grid.append(skillTable(R), agentTable(R));
     root.append(grid);
+    if (R.mcp) root.append(mcpTable(R));
 
     const usedSkills = new Set(R.skills.map(s => s.name)), usedAgents = new Set(R.agents.map(a => a.name));
     const neverRan = N.filter(n => (n.kind === 'skill' && !usedSkills.has(n.name) && !usedSkills.has(n.slug)) || (n.kind === 'agent' && !usedAgents.has(n.name) && !usedAgents.has(n.slug)));
@@ -1629,7 +1568,8 @@
       body.innerHTML = '';
       const q = rtState.filter;
       const rows = [...RT.traces].sort((a, b) => SESSION_SORT[rtState.sort][1](rtSession.get(a.id), rtSession.get(b.id)))
-        .filter(t => !q || (t.title || '').toLowerCase().includes(q) || t.prompts.some(p => p.text.toLowerCase().includes(q)));
+        .filter(t => !q || (t.title || '').toLowerCase().includes(q) || t.prompts.some(p => p.text.toLowerCase().includes(q))
+          || (rtSession.get(t.id).mcp || []).some(m => m.server.toLowerCase().includes(q)));
       for (const t of rows) {
         const S = rtSession.get(t.id);
         const first = t.prompts[0]?.text || '';
@@ -1640,7 +1580,8 @@
           h('td', null,
             S.agents.length ? h('span', { class: 'rt-mini a', title: S.agents.join(', ') }, `${S.delegations} delegation${S.delegations > 1 ? 's' : ''}`) : null,
             S.skills.length ? h('span', { class: 'rt-mini s', title: S.skills.join(', ') }, `${S.skills.length} skill${S.skills.length > 1 ? 's' : ''}`) : null,
-            !S.agents.length && !S.skills.length ? h('span', { class: 'muted' }, '–') : null),
+            (S.mcp || []).length ? h('span', { class: 'rt-mini m', title: S.mcp.map(m => `${m.server}: ${m.calls} call${m.calls > 1 ? 's' : ''}`).join('\n') }, `MCP ${S.mcp.map(m => m.server).join(', ')}`) : null,
+            !S.agents.length && !S.skills.length && !(S.mcp || []).length ? h('span', { class: 'muted' }, '–') : null),
           h('td', { class: 'num' }, S.flagged ? h('span', { class: 'rt-mini f' }, `${S.flagged} flagged`) : h('span', { class: 'muted' }, '–')),
           h('td', { class: 'num' }, S.hotspots ? h('span', { class: 'rt-mini h' }, String(S.hotspots)) : h('span', { class: 'muted' }, '–')),
           h('td', { class: 'num' }, fmtTok(S.tokens)),
@@ -1650,11 +1591,11 @@
       if (!rows.length) body.append(h('tr', null, h('td', { colspan: '9', class: 'muted' }, 'No session matches.')));
     };
     wrap.append(h('div', { class: 'rt-scontrols' },
-      h('input', { type: 'search', class: 'rt-filter', placeholder: 'Filter by title or prompt…', value: rtState.filter, oninput: (e) => { rtState.filter = e.target.value.toLowerCase(); fill(); } }),
+      h('input', { type: 'search', class: 'rt-filter', placeholder: 'Filter by title, prompt or MCP server…', value: rtState.filter, oninput: (e) => { rtState.filter = e.target.value.toLowerCase(); fill(); } }),
       h('select', { class: 'rt-filter', 'aria-label': 'Sort sessions', onchange: (e) => { rtState.sort = e.target.value; fill(); } },
         Object.entries(SESSION_SORT).map(([k, [label]]) => h('option', { value: k, ...(rtState.sort === k ? { selected: '' } : {}) }, 'Sort: ' + label)))));
     wrap.append(h('div', { class: 'rt-tscroll' }, h('table', { class: 'rt-table rt-sessions-t' },
-      h('thead', null, h('tr', null, ['Session', 'When', 'Active', 'Agents & skills', 'Flagged', 'Hotspots', 'Tokens', 'Cost', ''].map(x => h('th', null, x)))),
+      h('thead', null, h('tr', null, ['Session', 'When', 'Active', 'Agents, skills & MCP', 'Flagged', 'Hotspots', 'Tokens', 'Cost', ''].map(x => h('th', null, x)))),
       body)));
     fill();
     return wrap;
@@ -1707,6 +1648,44 @@
         h('td', null, String(a.failed)), h('td', null, (a.toolCalls / a.delegations).toFixed(1)),
         h('td', null, fmtMs(a.durationMs / a.delegations)), h('td', null, fmtTok(a.tokens)))))));
     return c;
+  }
+
+  function mcpStatus(m) {
+    if (m.configured === null) return h('span', { class: 'muted', title: 'OpenCode’s own tools for MCP resources, shared by every server' }, 'built-in');
+    if (m.configured === false) return h('span', { class: 'rt-why warn', title: 'Seen in sessions but not in the current OpenCode config: removed or renamed since' }, 'not in config');
+    if (!m.calls) return h('span', { class: 'rt-why warn', title: 'Configured but never called: its tools still take room in every prompt' }, m.enabled === false ? 'disabled' : 'never used');
+    return h('span', { class: 'muted' }, m.scope === 'project' ? 'project config' : 'global config');
+  }
+  function mcpTable(R) {
+    const c = h('div', { class: 'card', style: 'margin-top:16px' });
+    const used = R.mcp.filter(m => m.calls);
+    c.append(h('h3', null, 'MCP servers', h('span', { class: 'count' }, `${used.length} used`)));
+    c.append(h('p', { class: 'hintp' }, 'Calls to tools that come from MCP servers: direct calls (OpenCode names them “server_tool”) and calls made from code the agent ran with the execute tool (“via code”; their time is the code block’s, split evenly). Servers come from the global and project opencode.json. An enabled server nobody calls still sends its tool list with every prompt.'));
+    if (!R.mcp.length) { c.append(h('div', { class: 'empty-ok' }, 'No MCP server is configured and none was called.')); return c; }
+    c.append(h('div', { class: 'rt-tscroll' }, h('table', { class: 'rt-table' },
+      h('tr', null, ['Server', 'Calls', 'Via code', 'Errors', 'Sessions', 'Avg time', 'Tools called', 'Status'].map(x => h('th', null, x))),
+      R.mcp.map(m => h('tr', null,
+        h('td', { class: 'rt-name' }, h('span', { class: 'dot', style: `background:${SPAN_COLOR.mcp}` }), ' ', h('b', null, m.name), m.type ? h('span', { class: 'muted' }, ' · ' + m.type) : null),
+        h('td', { class: 'num' }, String(m.calls)),
+        h('td', { class: 'num' }, m.viaCode ? String(m.viaCode) : '–'),
+        h('td', { class: 'num' }, m.errors ? h('span', { class: 'rt-err' }, String(m.errors)) : '0'),
+        h('td', { class: 'num' }, String(m.sessions)),
+        h('td', { class: 'num' }, m.calls ? fmtMs(m.durationMs / m.calls) : '–'),
+        h('td', { class: 'ss-wrap' }, Object.entries(m.tools).sort((a, b) => b[1] - a[1]).map(([t, n]) => h('span', { class: 'rt-mini m' }, `${t} ×${n}`))),
+        h('td', null, mcpStatus(m)))))));
+    return c;
+  }
+  // context7_query-docs → query-docs
+  function mcpToolName(tool, server) {
+    const pre = server.replace(/[^a-zA-Z0-9_-]/g, '_') + '_';
+    return tool.startsWith(pre) ? tool.slice(pre.length) : tool;
+  }
+  // same as mcpCalls() in lib/runtime/model.mjs: direct MCP calls, or the ones
+  // code run by OpenCode's `execute` made (their time is the block's, split evenly)
+  function mcpCallsOf(s) {
+    const ms = Math.max(0, s.end - s.start);
+    if (s.calls && s.calls.length) return s.calls.filter(c => c.server).map(c => ({ server: c.server, tool: c.tool, status: c.status, ms: ms / s.calls.length, viaCode: true }));
+    return s.mcp ? [{ server: s.mcp, tool: mcpToolName(s.name, s.mcp), status: s.status, ms, viaCode: false }] : [];
   }
 
   /* ---------- session page (#session/<id>) ---------- */
@@ -1838,6 +1817,31 @@
       el.append(dc);
     }
 
+    // MCP servers this session (and its subagents) called
+    const mcpSpans = tree.flatMap(x => x.spans.flatMap(z => mcpCallsOf(z).map(c => ({ ...c, span: z, agent: x.agent || 'main' }))));
+    if (mcpSpans.length) {
+      const by = new Map();
+      for (const z of mcpSpans) {
+        const k = z.server + '|' + z.tool;
+        const r = by.get(k) || { server: z.server, tool: z.tool, calls: 0, viaCode: 0, errors: 0, ms: 0, agents: new Set(), first: z.span };
+        r.calls++; if (z.viaCode) r.viaCode++; if (z.status === 'error') r.errors++; r.ms += z.ms; r.agents.add(z.agent);
+        by.set(k, r);
+      }
+      const mc = h('section', { class: 'ss-card' }, h('h3', null, 'MCP servers used', h('span', { class: 'count' }, String(mcpSpans.length))),
+        h('p', { class: 'hintp' }, 'Tool calls that went to an MCP server, by tool — directly or from code the agent ran with execute. Click one to find it in the call tree.'));
+      mc.append(h('div', { class: 'rt-tscroll' }, h('table', { class: 'rt-table' },
+        h('tr', null, ['Server', 'Tool', 'Calls', 'How', 'Errors', 'Time', 'Called by'].map(x => h('th', null, x))),
+        [...by.values()].sort((a, b) => b.calls - a.calls).map(r => h('tr', { class: 'rt-srow', onclick: () => openSession(t.id, { span: r.first.id }) },
+          h('td', null, h('span', { class: 'dot', style: `background:${SPAN_COLOR.mcp}` }), ' ', h('b', null, r.server)),
+          h('td', null, r.tool),
+          h('td', { class: 'num' }, String(r.calls)),
+          h('td', null, r.viaCode === r.calls ? 'via code' : r.viaCode ? `${r.calls - r.viaCode} direct · ${r.viaCode} via code` : 'direct'),
+          h('td', { class: 'num' }, r.errors ? h('span', { class: 'rt-err' }, String(r.errors)) : '0'),
+          h('td', { class: 'num' }, fmtMs(r.ms)),
+          h('td', null, [...r.agents].join(', ')))))));
+      el.append(mc);
+    }
+
     // what was asked
     if (t.prompts.length) {
       const pc = h('section', { class: 'ss-card' }, h('h3', null, 'What you asked', h('span', { class: 'count' }, String(t.prompts.length))));
@@ -1869,8 +1873,8 @@
     el.append(h('div', { class: 'ss-toolbar' },
       h('label', { class: 'rt-toggle' },
         h('input', { type: 'checkbox', ...(rtState.onlyKey ? { checked: '' } : {}), onchange: (e) => { rtState.onlyKey = e.target.checked; renderSession(); } }),
-        ' Only skills, subagents and errors'),
-      h('div', { class: 'rt-legend' }, Object.entries({ agent: 'subagent', skill: 'skill', think: 'thinking', read: 'read/search', edit: 'edit', exec: 'shell', web: 'web', other: 'other' })
+        ' Only skills, subagents, MCP and errors'),
+      h('div', { class: 'rt-legend' }, Object.entries({ agent: 'subagent', skill: 'skill', think: 'thinking', read: 'read/search', edit: 'edit', exec: 'shell', web: 'web', mcp: 'MCP', other: 'other' })
         .map(([k, v]) => h('span', null, h('span', { class: 'dot', style: `background:${SPAN_COLOR[k]}` }), ' ', v)))));
     const all = [...walkRt(t)];
     el.append(h('section', { class: 'ss-card' }, traceBody(t, { start: t.start, end: Math.max(t.end, ...all.map(x => x.end)) }, rtState.focusSpan)));
@@ -1906,7 +1910,7 @@
         hidden = [];
       };
       for (const s of turns.get(turn) || []) {
-        const key = s.kind === 'agent' || s.kind === 'skill' || s.status === 'error';
+        const key = s.kind === 'agent' || s.kind === 'skill' || s.kind === 'mcp' || s.status === 'error' || s.id === focusSpan;
         if (rtState.onlyKey && !key) { hidden.push(s); continue; }
         flush();
         body.append(spanRow(t, s, range, focusSpan));
@@ -1927,7 +1931,7 @@
     const node = (s.kind === 'skill' || s.kind === 'agent') ? nodeByName(s.name) : null;
     const row = h('div', { class: 'rt-span k-' + s.kind + (s.status === 'error' ? ' err' : '') + (del && del.flags.length ? ' flagged' : '') + (focusSpan === s.id ? ' focus' : ''), 'data-span': s.id },
       h('span', { class: 'dot', style: `background:${SPAN_COLOR[s.kind] || SPAN_COLOR.other}` }),
-      h('span', { class: 'rt-sname' }, s.kind === 'agent' ? 'subagent ' : s.kind === 'skill' ? 'skill ' : '', h('b', null, s.name)),
+      h('span', { class: 'rt-sname' }, s.kind === 'agent' ? 'subagent ' : s.kind === 'skill' ? 'skill ' : s.kind === 'mcp' ? `MCP ${s.mcp} · ` : '', h('b', null, s.kind !== 'mcp' ? s.name : s.calls && s.calls.length ? `${s.name} → ${mcpCallsOf(s).map(c => c.tool).filter((x, i, a) => a.indexOf(x) === i).join(', ')}` : mcpToolName(s.name, s.mcp))),
       node ? h('button', { class: 'linkbtn', title: 'Show definition', onclick: (e) => { e.stopPropagation(); focusNode(node.id); } }, 'def') : null,
       h('span', { class: 'rt-sdetail', title: detail }, detail),
       howChip(dec),
@@ -1979,8 +1983,8 @@
     for (const it of s.st.items) {
       if (it.type === 'tool' || it.type === 'ask' || it.type === 'agent') {
         const sp = s.trace.spans.find(z => z.id === it.ref);
-        const k = !sp ? 'tool' : sp.kind === 'agent' ? `→ ${sp.name}` : sp.kind === 'skill' ? `skill ${sp.name}` : sp.tool;
-        counts[k] = (counts[k] || 0) + 1;
+        const keys = !sp ? ['tool'] : sp.kind === 'agent' ? [`→ ${sp.name}`] : sp.kind === 'skill' ? [`skill ${sp.name}`] : sp.kind === 'mcp' ? mcpCallsOf(sp).map(c => `MCP ${c.server}·${c.tool}`) : [sp.tool];
+        for (const k of keys) counts[k] = (counts[k] || 0) + 1;
       }
     }
     const acts = Object.entries(counts).map(([k, n]) => n > 1 ? `${k} ×${n}` : k);
@@ -2227,7 +2231,7 @@
   /* ================= keyboard help ================= */
   const SHORTCUTS = [
     ['/', 'Search (Enter jumps to the first match, Esc clears)'],
-    ['1 – 5', 'Diagram · Graph · Hierarchy · Insights · Runtime'],
+    ['1 – 4', 'Diagram · Hierarchy · Insights · Runtime'],
     ['F', 'Fit everything into view'],
     ['+  −  0', 'Zoom in · out · 100%'],
     ['R', 'Re-layout'],
@@ -2262,7 +2266,7 @@
       h('p', null, 'SkillMap looked for SKILL.md files, agent definitions (.claude/agents, .opencode/agents) and AGENTS.md-style instruction files, but found none here.')));
   } else {
     relayout();
-    laidOut.add('diagram');
+    laidOut = true;
   }
   window.__sm = () => ({ zoom, W, H, pan, groups: [...scopeGroups()].map(([s, ids]) => ({ s, n: ids.length, b: groupBounds(ids, 26, 30) })) });
   window.__smToggle = (scope) => toggleCollapse(scope);

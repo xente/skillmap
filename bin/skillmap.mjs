@@ -16,7 +16,7 @@ import { execFile } from 'node:child_process';
 import { scan } from '../lib/scan.mjs';
 import { buildGraph, analyze } from '../lib/analyze.mjs';
 import { buildPayload, writeReport } from '../lib/report.mjs';
-import { loadTraces } from '../lib/runtime/opencode.mjs';
+import { loadTraces, loadMcpServers } from '../lib/runtime/opencode.mjs';
 import { analyzeRuntime } from '../lib/runtime/analyze.mjs';
 
 const REPORT_DIR = '.skillmap';
@@ -83,7 +83,8 @@ async function loadRuntime(root, args) {
   try {
     const traces = await loadTraces({ root, all: args.all, since: Date.now() - parseAge(args.since), dbPath: args.db, includeThinking: args.thinking });
     if (!traces.length) { runtimeNote = `no OpenCode sessions for this folder in the last ${args.since}`; return null; }
-    return { source: 'opencode', since: args.since, thinking: Boolean(args.thinking), traces, analysis: analyzeRuntime(traces) };
+    const mcpServers = loadMcpServers({ root, all: args.all, dirs: traces.map((t) => t.directory) });
+    return { source: 'opencode', since: args.since, thinking: Boolean(args.thinking), traces, analysis: analyzeRuntime(traces, { mcpServers }) };
   } catch (err) {
     runtimeNote = err.message;
     return null;
@@ -157,7 +158,8 @@ const pct = (x) => `${Math.round(x * 100)}%`;
 async function trace(args) {
   const root = resolve(args._[0] || '.');
   const traces = await loadTraces({ root, all: args.all, since: Date.now() - parseAge(args.since), dbPath: args.db, includeThinking: args.thinking });
-  const r = analyzeRuntime(traces);
+  const mcpServers = loadMcpServers({ root, all: args.all, dirs: traces.map((t) => t.directory) });
+  const r = analyzeRuntime(traces, { mcpServers });
   if (args.json) writeFileSync(resolve(args.json), JSON.stringify({ root: args.all ? null : root, traces, analysis: r }, null, 2), 'utf8');
 
   const line = (s = '') => process.stdout.write(s + '\n');
@@ -166,7 +168,7 @@ async function trace(args) {
   line(`  ◍  SkillMap trace · OpenCode · ${args.all ? 'all projects' : basename(root)} · last ${args.since}`);
   line('  ' + '─'.repeat(56));
   line(`     Sessions ${c.sessions}   Subagent sessions ${c.subagentSessions}   Tool calls ${c.toolCalls}`);
-  line(`     Skill calls ${c.skillCalls}   Delegations ${c.delegations}`);
+  line(`     Skill calls ${c.skillCalls}   Delegations ${c.delegations}   MCP calls ${c.mcpCalls}`);
   if (!c.sessions) line(`     ! No OpenCode sessions found${args.all ? '' : ' for this folder — try --all or a longer --since'}.`);
 
   if (r.skills.length) {
@@ -184,6 +186,15 @@ async function trace(args) {
     line('  Subagents                  calls  flagged  failed  avg calls  avg time   tokens');
     for (const a of r.agents) {
       line(`     ${a.name.slice(0, 23).padEnd(23)} ${String(a.delegations).padStart(5)}  ${String(a.flagged).padStart(7)}  ${String(a.failed).padStart(6)}  ${(a.toolCalls / a.delegations).toFixed(1).padStart(9)}  ${fmtMs(a.durationMs / a.delegations).padStart(8)}  ${fmtTok(a.tokens).padStart(7)}`);
+    }
+  }
+
+  if (r.mcp.length) {
+    line();
+    line('  MCP servers                calls  via code  errors  sessions  time      tools used');
+    for (const m of r.mcp) {
+      const note = m.configured === false ? '  (not in config)' : m.enabled === false ? '  (disabled)' : '';
+      line(`     ${m.name.slice(0, 23).padEnd(23)} ${String(m.calls).padStart(5)}  ${String(m.viaCode).padStart(8)}  ${String(m.errors).padStart(6)}  ${String(m.sessions).padStart(8)}  ${fmtMs(m.durationMs).padEnd(8)}  ${Object.keys(m.tools).length || '-'}${note}`);
     }
   }
 
