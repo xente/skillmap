@@ -1468,7 +1468,11 @@
     errors: ['Most errors', (a, b) => b.errors - a.errors],
   };
   function* walkRt(t) { yield t; for (const c of t.children) yield* walkRt(c); }
-  const VARIANT_TIP = 'Reasoning level OpenCode sent with each call. “default” = no level sent, the provider decides.';
+  const VARIANT_TIP = 'Reasoning (effort) level the runtime sent with each call. “default” = no level sent, the provider decides.';
+  const RT_LABEL = { opencode: 'OpenCode', 'claude-code': 'Claude Code' };
+  const rtSources = RT ? (RT.sources || [RT.source]) : [];
+  const rtLabel = rtSources.map(x => RT_LABEL[x] || x).join(' and ');
+  const costTxt = (t, n, digits) => (t.costEstimated ? '≈ $' : '$') + n.toFixed(digits);
   function variantChip(v, mismatch) {
     if (!v) return null;
     return h('span', { class: 'rt-var v-' + v + (mismatch ? ' mismatch' : ''), title: VARIANT_TIP }, 'thinking: ' + v);
@@ -1512,12 +1516,12 @@
     root.append(h('h2', null, 'Runtime'));
     if (!RT) {
       document.getElementById('runtimeCount').textContent = '–';
-      root.append(h('p', { class: 'lead' }, 'No OpenCode sessions were found for this folder, so there is nothing to trace yet. Run OpenCode here and regenerate the report (skillmap reads ~/.local/share/opencode/opencode.db; needs Node 22.5+). Use --since 365d to look further back.'));
+      root.append(h('p', { class: 'lead' }, 'No OpenCode or Claude Code sessions were found for this folder, so there is nothing to trace yet. Run either one here and regenerate the report (skillmap reads ~/.local/share/opencode/opencode.db, which needs Node 22.5+, and ~/.claude/projects). Use --since 365d to look further back.'));
       return;
     }
     const R = RT.analysis, c = R.counts, w = R.waste;
     document.getElementById('runtimeCount').textContent = String(w.delegations);
-    root.append(h('p', { class: 'lead' }, `What actually happened when agents worked in this project — OpenCode sessions from the last ${RT.since}. Facts come straight from the runtime; anything inferred (like “unnecessary”) is labelled as a heuristic. Open a session below to replay it step by step.`));
+    root.append(h('p', { class: 'lead' }, `What actually happened when agents worked in this project — ${rtLabel} sessions from the last ${RT.since}. Facts come straight from the runtime; anything inferred (like “unnecessary”) is labelled as a heuristic.${rtSources.includes('claude-code') ? ' Claude Code records tokens but not cost, so its costs (≈) are estimated from list prices.' : ''} Open a session below to replay it step by step.`));
 
     root.append(h('div', { class: 'kpis' },
       kpi('Sessions', c.sessions, `${c.subagentSessions} subagent sessions`),
@@ -1574,7 +1578,8 @@
         const S = rtSession.get(t.id);
         const first = t.prompts[0]?.text || '';
         body.append(h('tr', { class: 'rt-srow', tabindex: '0', onclick: () => openSession(t.id), onkeydown: (e) => { if (e.key === 'Enter') openSession(t.id); } },
-          h('td', { class: 'rt-scell' }, h('div', { class: 'rt-st' }, t.title || t.id), first ? h('div', { class: 'rt-sfirst', title: first }, first) : null),
+          h('td', { class: 'rt-scell' }, h('div', { class: 'rt-st' }, t.title || t.id), first ? h('div', { class: 'rt-sfirst', title: first }, first) : null,
+            rtSources.length > 1 ? h('div', { class: 'muted' }, RT_LABEL[t.runtime] || t.runtime) : null),
           h('td', null, h('div', null, fmtDate(t.start)), h('span', { class: 'rt-out o-' + t.outcome }, t.outcome)),
           h('td', { class: 'num' }, fmtMs(t.activeMs)),
           h('td', null,
@@ -1585,7 +1590,7 @@
           h('td', { class: 'num' }, S.flagged ? h('span', { class: 'rt-mini f' }, `${S.flagged} flagged`) : h('span', { class: 'muted' }, '–')),
           h('td', { class: 'num' }, S.hotspots ? h('span', { class: 'rt-mini h' }, String(S.hotspots)) : h('span', { class: 'muted' }, '–')),
           h('td', { class: 'num' }, fmtTok(S.tokens)),
-          h('td', { class: 'num' }, '$' + S.cost.toFixed(2)),
+          h('td', { class: 'num' }, costTxt(t, S.cost, 2)),
           h('td', { class: 'rt-go' }, '›')));
       }
       if (!rows.length) body.append(h('tr', null, h('td', { colspan: '9', class: 'muted' }, 'No session matches.')));
@@ -1651,16 +1656,16 @@
   }
 
   function mcpStatus(m) {
-    if (m.configured === null) return h('span', { class: 'muted', title: 'OpenCode’s own tools for MCP resources, shared by every server' }, 'built-in');
-    if (m.configured === false) return h('span', { class: 'rt-why warn', title: 'Seen in sessions but not in the current OpenCode config: removed or renamed since' }, 'not in config');
+    if (m.configured === null) return h('span', { class: 'muted', title: 'The runtime’s own tools for MCP resources, shared by every server' }, 'built-in');
+    if (m.configured === false) return h('span', { class: 'rt-why warn', title: 'Seen in sessions but not in the current config: removed or renamed since' }, 'not in config');
     if (!m.calls) return h('span', { class: 'rt-why warn', title: 'Configured but never called: its tools still take room in every prompt' }, m.enabled === false ? 'disabled' : 'never used');
-    return h('span', { class: 'muted' }, m.scope === 'project' ? 'project config' : 'global config');
+    return h('span', { class: 'muted' }, { project: 'project config', plugin: 'plugin', 'claude.ai': 'claude.ai connector' }[m.scope] || 'global config');
   }
   function mcpTable(R) {
     const c = h('div', { class: 'card', style: 'margin-top:16px' });
     const used = R.mcp.filter(m => m.calls);
     c.append(h('h3', null, 'MCP servers', h('span', { class: 'count' }, `${used.length} used`)));
-    c.append(h('p', { class: 'hintp' }, 'Calls to tools that come from MCP servers: direct calls (OpenCode names them “server_tool”) and calls made from code the agent ran with the execute tool (“via code”; their time is the code block’s, split evenly). Servers come from the global and project opencode.json. An enabled server nobody calls still sends its tool list with every prompt.'));
+    c.append(h('p', { class: 'hintp' }, 'Calls to tools that come from MCP servers: direct calls (OpenCode names them “server_tool”, Claude Code “mcp__server__tool”) and calls made from code the agent ran with OpenCode’s execute tool (“via code”; their time is the code block’s, split evenly). Servers come from opencode.json (global and project) and Claude Code’s ~/.claude.json, .mcp.json, enabled plugins and claude.ai connectors. An enabled server nobody calls still sends its tool list with every prompt.'));
     if (!R.mcp.length) { c.append(h('div', { class: 'empty-ok' }, 'No MCP server is configured and none was called.')); return c; }
     c.append(h('div', { class: 'rt-tscroll' }, h('table', { class: 'rt-table' },
       h('tr', null, ['Server', 'Calls', 'Via code', 'Errors', 'Sessions', 'Avg time', 'Tools called', 'Status'].map(x => h('th', null, x))),
@@ -1675,10 +1680,10 @@
         h('td', null, mcpStatus(m)))))));
     return c;
   }
-  // context7_query-docs → query-docs
+  // context7_query-docs → query-docs, mcp__context7__query-docs → query-docs (mcpToolName in model.mjs)
   function mcpToolName(tool, server) {
-    const pre = server.replace(/[^a-zA-Z0-9_-]/g, '_') + '_';
-    return tool.startsWith(pre) ? tool.slice(pre.length) : tool;
+    const pre = tool.startsWith('mcp__') ? tool.slice(0, tool.lastIndexOf('__') + 2) : server.replace(/[^a-zA-Z0-9_-]/g, '_') + '_';
+    return tool.startsWith(pre) && tool.length > pre.length ? tool.slice(pre.length) : tool;
   }
   // same as mcpCalls() in lib/runtime/model.mjs: direct MCP calls, or the ones
   // code run by OpenCode's `execute` made (their time is the block's, split evenly)
@@ -1727,7 +1732,7 @@
         h('div', { class: 'ss-sub' },
           h('span', { class: 'rt-out o-' + t.outcome }, t.outcome), ' · ', fmtDate(t.start), ' · ',
           h('b', null, fmtMs(t.activeMs)), ' active · agent ', h('b', null, t.agent || '–'), ' · model ', h('b', null, t.model || '–'), ' ', variantChip(t.variant),
-          ' · ', fmtTok(S.tokens), ' tokens · $', S.cost.toFixed(3),
+          ' · ', fmtTok(S.tokens), ' tokens · ', costTxt(t, S.cost, 3), ' · ', RT_LABEL[t.runtime] || t.runtime,
           tree.length > 1 ? ` · ${tree.length - 1} subagent session${tree.length > 2 ? 's' : ''}` : '')),
       h('nav', { class: 'ss-tabs' },
         [['overview', 'Overview'], ['timeline', 'Timeline · replay'], ['tree', 'Call tree']].map(([k, l]) =>
@@ -1748,7 +1753,7 @@
       kpi('Delegations', S.delegations, S.delegations ? `${fmtMs(S.delegatedMs)} · ${fmtTok(S.delegatedTokens)} tok` : 'none'),
       kpi('Flagged', S.flagged, S.delegations ? `${fmtPct(S.flagged / S.delegations)} of delegations` : 'no delegations', S.flagged ? 'bad' : 'ok'),
       kpi('Hotspots', S.hotspots, 'places losing time', S.hotspots ? 'warn' : 'ok'),
-      kpi('Cost', '$' + S.cost.toFixed(2), `${fmtTok(S.tokens)} tokens`)));
+      kpi('Cost', costTxt(t, S.cost, 2), `${fmtTok(S.tokens)} tokens${t.costEstimated ? ' · estimated' : ''}`)));
 
     // where the time went, explained
     const tc = h('section', { class: 'ss-card' }, h('h3', null, 'Where the time went'),
