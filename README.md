@@ -6,13 +6,13 @@ works out how they reference each other, and renders one self-contained,
 interactive HTML report — so you can stop maintaining skills nobody uses,
 skills that overlap, and copies that have quietly drifted apart.
 
-If you use **OpenCode**, it also reads your local session history and shows what
+If you use **OpenCode** or **Claude Code**, it also reads your local session history and shows what
 actually happened at runtime: which skills and subagents ran, why, how long
 each step took, and where the agent wasted time — down to a step-by-step
 replay of every session.
 
-No dependencies. No build step. One Node command (Node 18+; the Runtime view
-needs Node 22.5+).
+No dependencies. No build step. One Node command (Node 18+; OpenCode sessions
+need Node 22.5+).
 
 ```bash
 node bin/skillmap.mjs <project-folder> --open
@@ -29,7 +29,7 @@ node bin/skillmap.mjs <project-folder> --open
 - [What it looks at](#what-it-looks-at)
 - [How connections are derived](#how-connections-are-derived)
 - [What it surfaces (Insights)](#what-it-surfaces-insights)
-- [Runtime: what actually happened (OpenCode)](#runtime-what-actually-happened-opencode)
+- [Runtime: what actually happened (OpenCode, Claude Code)](#runtime-what-actually-happened-opencode-claude-code)
 - [Usage](#usage)
 - [Keyboard](#keyboard)
 - [Layout](#layout)
@@ -277,13 +277,19 @@ Edges are typed:
 
 The **Health** grade (A–F) in the top bar summarises all of the above.
 
-## Runtime: what actually happened (OpenCode)
+## Runtime: what actually happened (OpenCode, Claude Code)
 
 The static map tells you how skills and agents *reference* each other. The
 **Runtime** tab tells you what happened when agents actually worked in the
-project. SkillMap reads OpenCode's local database
-(`~/.local/share/opencode/opencode.db`, read-only) and keeps the sessions that
-were started in the scanned folder.
+project. SkillMap reads, read-only, the local session history of:
+
+- **OpenCode** — its database (`~/.local/share/opencode/opencode.db`; needs Node 22.5+)
+- **Claude Code** — its transcripts (`~/.claude/projects/<folder>/<session>.jsonl`,
+  subagents under `<session>/subagents/`; `$CLAUDE_CONFIG_DIR` is honoured)
+
+and keeps the sessions that were started in the scanned folder. By default
+both are read and merged into one list; `--runtime opencode` or
+`--runtime claude` picks one.
 
 ```bash
 # report with the Runtime tab (sessions from the last 30 days by default)
@@ -292,13 +298,23 @@ node bin/skillmap.mjs ~/code/my-app --since 90d --open
 # the same analysis in the terminal
 node bin/skillmap.mjs trace ~/code/my-app --since 90d
 node bin/skillmap.mjs trace --all --since 365d -j trace.json   # every project
+node bin/skillmap.mjs trace . --runtime claude                  # Claude Code only
 ```
 
 It works with both OpenCode storage layouts (the original tables and the
-`session_v2` schema introduced with OpenCode 2). The database schema is
-internal to OpenCode and undocumented, so a future OpenCode release may need
-an adapter update — everything that touches it lives in
-`lib/runtime/opencode.mjs`.
+`session_v2` schema introduced with OpenCode 2). Neither runtime documents its
+storage format, so a future release may need an adapter update — everything
+that touches it lives in `lib/runtime/opencode.mjs` and `lib/runtime/claude.mjs`.
+
+**Claude Code specifics.** Claude Code records tokens per model call but not
+cost, so its costs are **estimates** from Anthropic list prices (cache writes
+at 1.25× / 2× input, fast mode at 2×) and shown with `≈`. A model call runs
+from the message that triggered it until its last tool result; a tool call
+from its `tool_use` to its `tool_result`. Background subagents return at
+once, so their delegation lasts until the subagent's transcript ends. A skill
+run as a slash command (`/review`) counts as a skill call *you attached*;
+built-in commands (`/model`, `/clear`…) are not prompts. The thinking level is
+the effort Claude Code sent (`low` … `max`).
 
 ### What you get
 
@@ -336,9 +352,10 @@ an adapter update — everything that touches it lives in
 - **Call tree** — prompts, skills, subagents (expandable into their own work),
   MCP calls, errors and thinking, with why each skill/subagent ran
 
-**How MCP calls are recognised.** OpenCode does not mark a tool call as MCP in
-its database. An agent can reach an MCP server in two ways, and SkillMap counts
-both:
+**How MCP calls are recognised.** Claude Code names MCP tools
+`mcp__<server>__<tool>`, so the server is read from the name. OpenCode does not
+mark a tool call as MCP in its database. An agent can reach an MCP server in
+two ways there, and SkillMap counts both:
 
 - **direct** — the tool is named `<server>_<tool>`. SkillMap reads the server
   names from OpenCode's config and matches the prefix.
@@ -351,8 +368,11 @@ Servers come from the global config (`~/.config/opencode/opencode.json[c]`,
 `$OPENCODE_CONFIG`) and every `opencode.json[c]` / `.opencode/opencode.json[c]`
 from each session's folder up to the scanned folder. Only the server name,
 type and `enabled` flag are read — never the command, URL, headers or
-environment. A server that shows up in sessions but is in none of those
-configs is marked *not in config*.
+environment. For Claude Code, servers come from `~/.claude.json` (user and
+per-project local scope), `.mcp.json` in each session's folder and its
+parents, enabled plugins (`plugin:<plugin>:<server>`) and claude.ai connectors
+that were ever connected. A server that shows up in sessions but is in none of
+those configs is marked *not in config*.
 
 ### What it detects
 
@@ -387,9 +407,10 @@ in the prompt, *model chose* or *subagent chose*. SkillMap never invents the
 model's intent.
 
 **Thinking level** — the reasoning variant OpenCode sent with each call
-(`high`, `medium`, `default` = none sent, the provider decides). A subagent
-that doesn't run at the main agent's level is highlighted; it usually has its
-own `model:` in its definition. Only OpenCode 2 sessions record it.
+(`high`, `medium`, `default` = none sent, the provider decides), or the effort
+Claude Code sent. A subagent that doesn't run at the main agent's level is
+highlighted; it usually has its own `model:` in its definition. Of OpenCode
+sessions, only OpenCode 2 ones record it.
 
 ### Privacy
 
@@ -418,9 +439,13 @@ skillmap trace [project-folder] [options]
                         Embed the model's reasoning text in the report
   -h, --help            Show help
 
-Runtime options (report and `trace`; need Node 22.5+):
+Runtime options (report and `trace`):
+      --runtime <r>     opencode, claude or all (default all)
       --since <age>     Only sessions newer than this: 7d, 12h, 30m (default 30d)
-      --db <file>       OpenCode database (default ~/.local/share/opencode/opencode.db)
+      --db <file>       OpenCode database (default ~/.local/share/opencode/opencode.db;
+                        OpenCode needs Node 22.5+)
+      --claude-dir <dir>
+                        Claude Code config folder (default $CLAUDE_CONFIG_DIR or ~/.claude)
       --all             `trace` only: every project, not just the folder
 ```
 
@@ -456,6 +481,7 @@ lib/analyze.mjs         graph builder, duplicate/unused/cycle analysis
 lib/report.mjs          inlines assets + data into one HTML file
 lib/runtime/model.mjs   normalized trace model shared by runtime adapters
 lib/runtime/opencode.mjs  OpenCode adapter (reads the local SQLite store)
+lib/runtime/claude.mjs  Claude Code adapter (reads the JSONL transcripts)
 lib/runtime/analyze.mjs effectiveness, decisions, delegations, hotspots
 assets/template.html    page shell
 assets/app.css          styling

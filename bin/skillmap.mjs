@@ -2,7 +2,7 @@
 // skillmap CLI — scan an AI project folder and build a visual report.
 //
 //   skillmap <project-folder> [options]
-//   skillmap trace [project-folder] [options]   runtime traces (OpenCode)
+//   skillmap trace [project-folder] [options]   runtime traces (OpenCode, Claude Code)
 //
 // Options:
 //   -o, --out <file>     Output HTML file (default: <project>/.skillmap/skillmap.html)
@@ -16,7 +16,8 @@ import { execFile } from 'node:child_process';
 import { scan } from '../lib/scan.mjs';
 import { buildGraph, analyze } from '../lib/analyze.mjs';
 import { buildPayload, writeReport } from '../lib/report.mjs';
-import { loadTraces, loadMcpServers } from '../lib/runtime/opencode.mjs';
+import * as opencode from '../lib/runtime/opencode.mjs';
+import * as claude from '../lib/runtime/claude.mjs';
 import { analyzeRuntime } from '../lib/runtime/analyze.mjs';
 
 const REPORT_DIR = '.skillmap';
@@ -31,16 +32,20 @@ Options:
   -o, --out <file>   Output HTML file   (default: <project>/.skillmap/skillmap.html)
   -j, --json <file>  Also write raw graph JSON
       --open         Open the report in your browser
-      --no-trace     Skip the Runtime tab (OpenCode session traces)
+      --no-trace     Skip the Runtime tab (OpenCode / Claude Code session traces)
       --include-thinking
                      Embed the model's reasoning text in the report (large; may
                      contain sensitive details — don't share the report blindly)
   -h, --help         Show this help
 
-Runtime options (report + trace; read OpenCode sessions, needs Node 22.5+):
+Runtime options (report + trace; read local session history):
+      --runtime <r>  opencode, claude or all (default all: whichever has sessions)
       --all          Every project, not just <project-folder>
       --since <age>  Only sessions newer than this (e.g. 7d, 12h; default 30d)
-      --db <file>    OpenCode database (default ~/.local/share/opencode/opencode.db)
+      --db <file>    OpenCode database (default ~/.local/share/opencode/opencode.db;
+                     OpenCode needs Node 22.5+)
+      --claude-dir <dir>
+                     Claude Code config folder (default $CLAUDE_CONFIG_DIR or ~/.claude)
 
 Examples:
   skillmap .
@@ -50,11 +55,11 @@ Examples:
 `;
 
 function parseArgs(argv) {
-  const args = { _: [], open: false, all: false, since: '30d', trace: true };
+  const args = { _: [], open: false, all: false, since: '30d', trace: true, runtime: 'all' };
   if (argv[0] === 'trace') { args.command = 'trace'; argv = argv.slice(1); }
   const value = (i, flag) => {
     const v = argv[i];
-    if (v === undefined || v.startsWith('-')) throw new Error(`${flag} needs a file path`);
+    if (v === undefined || v.startsWith('-')) throw new Error(`${flag} needs a value`);
     return v;
   };
   for (let i = 0; i < argv.length; i++) {
@@ -66,6 +71,8 @@ function parseArgs(argv) {
     else if (a === '--include-thinking') args.thinking = true;
     else if (a === '--since') args.since = value(++i, a);
     else if (a === '--db') args.db = value(++i, a);
+    else if (a === '--claude-dir') args.claudeDir = value(++i, a);
+    else if (a === '--runtime') args.runtime = value(++i, a);
     else if (a === '-o' || a === '--out') args.out = value(++i, a);
     else if (a === '-j' || a === '--json') args.json = value(++i, a);
     else if (a.startsWith('--out=')) args.out = a.slice(6);
@@ -74,17 +81,56 @@ function parseArgs(argv) {
     else args._.push(a);
   }
   if (args._.length > 1) throw new Error(`expected one project folder, got ${args._.length} (see --help)`);
+  if (!RUNTIMES[args.runtime]) throw new Error(`--runtime expects ${Object.keys(RUNTIMES).join(', ')}, got "${args.runtime}"`);
   return args;
+}
+
+const LABEL = { opencode: 'OpenCode', 'claude-code': 'Claude Code' };
+const RUNTIMES = { opencode: ['opencode'], claude: ['claude-code'], all: ['opencode', 'claude-code'] };
+const runtimeLabel = (sources) => sources.map((s) => LABEL[s]).join(' + ');
+
+/**
+ * Sessions from every selected runtime, merged into one list. A runtime that
+ * is missing or unreadable only matters when it was asked for by name or
+ * nothing else had sessions: its error is returned in `notes`.
+ */
+async function loadAllTraces(root, args) {
+  const since = Date.now() - parseAge(args.since);
+  const traces = [], servers = new Map(), sources = [], notes = [];
+  for (const rt of RUNTIMES[args.runtime]) {
+    try {
+      let ts, mcp;
+      if (rt === 'opencode') {
+        ts = await opencode.loadTraces({ root, all: args.all, since, dbPath: args.db, includeThinking: args.thinking });
+        mcp = opencode.loadMcpServers({ root, all: args.all, dirs: ts.map((t) => t.directory) });
+      } else {
+        ts = await claude.loadTraces({ root, all: args.all, since, configDir: args.claudeDir, includeThinking: args.thinking });
+        mcp = await claude.loadMcpServers({ root, all: args.all, dirs: ts.map((t) => t.directory), configDir: args.claudeDir });
+        claude.resolveMcpNames(ts, mcp);
+      }
+      // a runtime without sessions here says nothing about its MCP servers' use
+      if (!ts.length) continue;
+      sources.push(rt);
+      traces.push(...ts);
+      for (const m of mcp) if (!servers.has(m.name)) servers.set(m.name, m);
+    } catch (err) {
+      notes.push(`${LABEL[rt]}: ${err.message}`);
+    }
+  }
+  traces.sort((a, b) => a.start - b.start);
+  return { traces, mcpServers: [...servers.values()], sources, notes };
 }
 
 let runtimeNote = '';
 // Runtime traces are a bonus on the static report: never fail the scan over them.
 async function loadRuntime(root, args) {
   try {
-    const traces = await loadTraces({ root, all: args.all, since: Date.now() - parseAge(args.since), dbPath: args.db, includeThinking: args.thinking });
-    if (!traces.length) { runtimeNote = `no OpenCode sessions for this folder in the last ${args.since}`; return null; }
-    const mcpServers = loadMcpServers({ root, all: args.all, dirs: traces.map((t) => t.directory) });
-    return { source: 'opencode', since: args.since, thinking: Boolean(args.thinking), traces, analysis: analyzeRuntime(traces, { mcpServers }) };
+    const { traces, mcpServers, sources, notes } = await loadAllTraces(root, args);
+    if (!traces.length) {
+      runtimeNote = notes.length && args.runtime !== 'all' ? notes.join('; ') : `no ${runtimeLabel(RUNTIMES[args.runtime])} sessions for this folder in the last ${args.since}`;
+      return null;
+    }
+    return { source: sources.join('+'), sources, since: args.since, thinking: Boolean(args.thinking), traces, analysis: analyzeRuntime(traces, { mcpServers }) };
   } catch (err) {
     runtimeNote = err.message;
     return null;
@@ -135,7 +181,7 @@ async function main() {
   line(`  ✔ Report written to ${out}`);
   if (runtime) {
     const r = runtime.analysis;
-    line(`     Runtime (OpenCode, last ${args.since}): ${r.counts.sessions} sessions · ${r.counts.delegations} delegations · ${r.waste.delegations} flagged`);
+    line(`     Runtime (${runtimeLabel(runtime.sources)}, last ${args.since}): ${r.counts.sessions} sessions · ${r.counts.delegations} delegations · ${r.waste.delegations} flagged`);
   } else if (args.trace && runtimeNote) line(`     Runtime: ${runtimeNote}`);
   if (args.json) line(`  ✔ Graph JSON written to ${resolve(args.json)}`);
   line(`  ⏱  ${Date.now() - t0} ms`);
@@ -157,19 +203,21 @@ const pct = (x) => `${Math.round(x * 100)}%`;
 
 async function trace(args) {
   const root = resolve(args._[0] || '.');
-  const traces = await loadTraces({ root, all: args.all, since: Date.now() - parseAge(args.since), dbPath: args.db, includeThinking: args.thinking });
-  const mcpServers = loadMcpServers({ root, all: args.all, dirs: traces.map((t) => t.directory) });
+  const { traces, mcpServers, sources, notes } = await loadAllTraces(root, args);
+  if (!traces.length && notes.length && args.runtime !== 'all') throw new Error(notes.join('; '));
   const r = analyzeRuntime(traces, { mcpServers });
+  const label = runtimeLabel(sources.length ? sources : RUNTIMES[args.runtime]);
   if (args.json) writeFileSync(resolve(args.json), JSON.stringify({ root: args.all ? null : root, traces, analysis: r }, null, 2), 'utf8');
 
   const line = (s = '') => process.stdout.write(s + '\n');
   const c = r.counts;
   line();
-  line(`  ◍  SkillMap trace · OpenCode · ${args.all ? 'all projects' : basename(root)} · last ${args.since}`);
+  line(`  ◍  SkillMap trace · ${label} · ${args.all ? 'all projects' : basename(root)} · last ${args.since}`);
   line('  ' + '─'.repeat(56));
   line(`     Sessions ${c.sessions}   Subagent sessions ${c.subagentSessions}   Tool calls ${c.toolCalls}`);
   line(`     Skill calls ${c.skillCalls}   Delegations ${c.delegations}   MCP calls ${c.mcpCalls}`);
-  if (!c.sessions) line(`     ! No OpenCode sessions found${args.all ? '' : ' for this folder — try --all or a longer --since'}.`);
+  if (sources.includes('claude-code')) line('     Claude Code costs are estimates from list prices (it records tokens, not cost).');
+  if (!c.sessions) line(`     ! No ${label} sessions found${args.all ? '' : ' for this folder — try --all or a longer --since'}.`);
 
   if (r.skills.length) {
     const b = r.baseline;
