@@ -3,6 +3,7 @@
 //
 //   skillmap <project-folder> [options]
 //   skillmap trace [project-folder] [options]   runtime traces (OpenCode, Claude Code)
+//   skillmap live                               live status of one session (herdr pane)
 //
 // Options:
 //   -o, --out <file>     Output HTML file (default: <project>/.skillmap/skillmap.html)
@@ -16,9 +17,12 @@ import { execFile } from 'node:child_process';
 import { scan } from '../lib/scan.mjs';
 import { buildGraph, analyze } from '../lib/analyze.mjs';
 import { buildPayload, writeReport } from '../lib/report.mjs';
-import * as opencode from '../lib/runtime/opencode.mjs';
-import * as claude from '../lib/runtime/claude.mjs';
+import { serveReport } from '../lib/serve.mjs';
 import { analyzeRuntime } from '../lib/runtime/analyze.mjs';
+import { RUNTIMES, runtimeLabel, loadAllTraces } from '../lib/runtime/load.mjs';
+import { watchSessions } from '../lib/runtime/watch.mjs';
+import { enableCache } from '../lib/runtime/claude.mjs';
+import { live } from '../lib/live.mjs';
 
 const REPORT_DIR = '.skillmap';
 
@@ -27,11 +31,15 @@ const HELP = `skillmap — visualize a project's skills, agents and how they con
 Usage:
   skillmap <project-folder> [options]
   skillmap trace [project-folder] [options]
+  skillmap live                   Live status of one agent session (herdr pane)
 
 Options:
   -o, --out <file>   Output HTML file   (default: <project>/.skillmap/skillmap.html)
   -j, --json <file>  Also write raw graph JSON
       --open         Open the report in your browser
+      --watch        Serve the report on localhost and update the Runtime tab
+                     live as sessions change (instead of writing a file)
+      --port <n>     Port for --watch (default 4317)
       --no-trace     Skip the Runtime tab (OpenCode / Claude Code session traces)
       --include-thinking
                      Embed the model's reasoning text in the report (large; may
@@ -51,12 +59,13 @@ Examples:
   skillmap .
   skillmap ~/code/my-app --open
   skillmap . -o reports/skillmap.html --json reports/skillmap.json
+  skillmap . --watch --open
   skillmap trace . --since 7d
 `;
 
 function parseArgs(argv) {
-  const args = { _: [], open: false, all: false, since: '30d', trace: true, runtime: 'all' };
-  if (argv[0] === 'trace') { args.command = 'trace'; argv = argv.slice(1); }
+  const args = { _: [], open: false, all: false, since: '30d', trace: true, runtime: 'all', watch: false, port: 4317 };
+  if (argv[0] === 'trace' || argv[0] === 'live') { args.command = argv[0]; argv = argv.slice(1); }
   const value = (i, flag) => {
     const v = argv[i];
     if (v === undefined || v.startsWith('-')) throw new Error(`${flag} needs a value`);
@@ -67,6 +76,8 @@ function parseArgs(argv) {
     if (a === '-h' || a === '--help') args.help = true;
     else if (a === '--open') args.open = true;
     else if (a === '--all') args.all = true;
+    else if (a === '--watch') args.watch = true;
+    else if (a === '--port') args.port = Number(value(++i, a));
     else if (a === '--no-trace') args.trace = false;
     else if (a === '--include-thinking') args.thinking = true;
     else if (a === '--since') args.since = value(++i, a);
@@ -81,44 +92,9 @@ function parseArgs(argv) {
     else args._.push(a);
   }
   if (args._.length > 1) throw new Error(`expected one project folder, got ${args._.length} (see --help)`);
+  if (!Number.isInteger(args.port) || args.port < 1 || args.port > 65535) throw new Error(`--port expects a port number, got "${args.port}"`);
   if (!RUNTIMES[args.runtime]) throw new Error(`--runtime expects ${Object.keys(RUNTIMES).join(', ')}, got "${args.runtime}"`);
   return args;
-}
-
-const LABEL = { opencode: 'OpenCode', 'claude-code': 'Claude Code' };
-const RUNTIMES = { opencode: ['opencode'], claude: ['claude-code'], all: ['opencode', 'claude-code'] };
-const runtimeLabel = (sources) => sources.map((s) => LABEL[s]).join(' + ');
-
-/**
- * Sessions from every selected runtime, merged into one list. A runtime that
- * is missing or unreadable only matters when it was asked for by name or
- * nothing else had sessions: its error is returned in `notes`.
- */
-async function loadAllTraces(root, args) {
-  const since = Date.now() - parseAge(args.since);
-  const traces = [], servers = new Map(), sources = [], notes = [];
-  for (const rt of RUNTIMES[args.runtime]) {
-    try {
-      let ts, mcp;
-      if (rt === 'opencode') {
-        ts = await opencode.loadTraces({ root, all: args.all, since, dbPath: args.db, includeThinking: args.thinking });
-        mcp = opencode.loadMcpServers({ root, all: args.all, dirs: ts.map((t) => t.directory) });
-      } else {
-        ts = await claude.loadTraces({ root, all: args.all, since, configDir: args.claudeDir, includeThinking: args.thinking });
-        mcp = await claude.loadMcpServers({ root, all: args.all, dirs: ts.map((t) => t.directory), configDir: args.claudeDir });
-        claude.resolveMcpNames(ts, mcp);
-      }
-      // a runtime without sessions here says nothing about its MCP servers' use
-      if (!ts.length) continue;
-      sources.push(rt);
-      traces.push(...ts);
-      for (const m of mcp) if (!servers.has(m.name)) servers.set(m.name, m);
-    } catch (err) {
-      notes.push(`${LABEL[rt]}: ${err.message}`);
-    }
-  }
-  traces.sort((a, b) => a.start - b.start);
-  return { traces, mcpServers: [...servers.values()], sources, notes };
 }
 
 let runtimeNote = '';
@@ -137,15 +113,10 @@ async function loadRuntime(root, args) {
   }
 }
 
-function parseAge(s) {
-  const m = /^(\d+)\s*([dhm])$/.exec(s);
-  if (!m) throw new Error(`--since expects an age like 7d, 12h or 30m, got "${s}"`);
-  return Number(m[1]) * { d: 86400000, h: 3600000, m: 60000 }[m[2]];
-}
-
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.command === 'trace' && !args.help) return trace(args);
+  if (args.command === 'live' && !args.help) return live(args);
   if (args.all) throw new Error('--all only applies to `skillmap trace`');
   if (args.help || args._.length === 0) { process.stdout.write(HELP); process.exit(args.help ? 0 : 1); }
 
@@ -155,6 +126,7 @@ async function main() {
   const { docs } = scan(root);
   const graph = buildGraph(docs);
   const analysis = analyze(graph);
+  if (args.watch) return serveLive(root, args, { docs, graph, analysis });
   const runtime = args.trace ? await loadRuntime(root, args) : null;
   const payload = buildPayload({ root, docs, graph, analysis, runtime });
 
@@ -186,15 +158,55 @@ async function main() {
   if (args.json) line(`  ✔ Graph JSON written to ${resolve(args.json)}`);
   line(`  ⏱  ${Date.now() - t0} ms`);
 
-  if (args.open) {
-    // `start` is a cmd.exe builtin, not an executable — it has to go through cmd.
-    const [cmd, cmdArgs] = process.platform === 'darwin' ? ['open', [out]]
-      : process.platform === 'win32' ? ['cmd', ['/c', 'start', '""', out]]
-      : ['xdg-open', [out]];
-    execFile(cmd, cmdArgs, (err) => {
-      if (err) process.stderr.write(`  ! Could not open the browser automatically — open ${out} manually.\n`);
-    });
+  if (args.open) openBrowser(out);
+}
+
+function openBrowser(target) {
+  // `start` is a cmd.exe builtin, not an executable — it has to go through cmd.
+  const [cmd, cmdArgs] = process.platform === 'darwin' ? ['open', [target]]
+    : process.platform === 'win32' ? ['cmd', ['/c', 'start', '""', target]]
+    : ['xdg-open', [target]];
+  execFile(cmd, cmdArgs, (err) => {
+    if (err) process.stderr.write(`  ! Could not open the browser automatically — open ${target} manually.\n`);
+  });
+}
+
+// --watch: serve the report and push the runtime to open pages on every change.
+// Skills and agents are scanned once; only the sessions are reloaded.
+async function serveLive(root, args, scanned) {
+  if (!args.trace) throw new Error('--watch shows live sessions, so it cannot be combined with --no-trace');
+  enableCache();
+  const line = (s = '') => process.stdout.write(s + '\n');
+  let runtime = await loadRuntime(root, args);
+  let sent = JSON.stringify(runtime);
+  let server;
+  try {
+    server = await serveReport({ port: args.port, root, payload: () => buildPayload({ root, ...scanned, runtime }) });
+  } catch (err) {
+    if (err.code !== 'SKILLMAP_RUNNING') throw err;
+    line(`  ${err.message}`);
+    if (args.open) openBrowser(`http://127.0.0.1:${args.port}/`);
+    return;
   }
+  line('');
+  line(`  ◍  SkillMap live · ${basename(root)}`);
+  line(`     ${server.url}  (localhost only · Ctrl+C to stop)`);
+  line(runtime ? `     ${runtime.analysis.counts.sessions} sessions (${runtimeLabel(runtime.sources)}, last ${args.since})` : `     ${runtimeNote || 'no sessions yet'} — waiting for one`);
+  if (args.open) openBrowser(server.url);
+
+  const stop = watchSessions(root, args, async () => {
+    const t0 = Date.now();
+    const next = await loadRuntime(root, args);
+    const json = JSON.stringify(next);
+    if (json === sent) return;
+    runtime = next;
+    sent = json;
+    server.send('runtime', runtime);
+    line(`     ${new Date().toLocaleTimeString()}  updated · ${runtime ? runtime.analysis.counts.sessions : 0} sessions · ${Date.now() - t0} ms`);
+  });
+  const quit = () => { stop(); server.close(); process.exit(0); };
+  process.on('SIGINT', quit);
+  process.on('SIGTERM', quit);
 }
 
 const fmtMs = (ms) => (ms >= 60000 ? `${(ms / 60000).toFixed(1)} min` : `${(ms / 1000).toFixed(1)} s`);
