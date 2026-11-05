@@ -1,0 +1,38 @@
+# herdr-plugin.toml: skillmap as a herdr plugin.
+# Install from a checkout with `herdr plugin link /path/to/skillmap`, then bind
+# keys to the actions in ~/.config/herdr/config.toml. Needs Node on the PATH
+# (22.5+ for OpenCode sessions); there is nothing to build.
+
+id = "skillmap"
+name = "skillmap"
+version = "0.1.0"
+description = "Live status of the agent session next to you (tokens, cost, tools, subagents, alerts), and the full Runtime view in the browser."
+min_herdr_version = "0.7.0"
+platforms = ["linux", "macos"]
+
+# Live status of one agent session. The open-live action passes which one.
+[[panes]]
+id = "live"
+title = "skillmap"
+placement = "split"
+command = ["node", "bin/skillmap.mjs", "live"]
+
+# The browser report, served live by `skillmap --watch`. The server lives in
+# this tab: close the tab to stop it.
+[[panes]]
+id = "web"
+title = "skillmap web"
+placement = "tab"
+command = ["/bin/sh", "herdr/web.sh"]
+
+[[actions]]
+id = "open-live"
+title = "skillmap: live session"
+description = "Agents and their sessions, live, in a split beside the focused agent (again to close it)."
+command = ["/bin/sh", "herdr/open-live.sh"]
+
+[[actions]]
+id = "open-web"
+title = "skillmap: open web view"
+description = "Open the Runtime view for the focused agent's folder in the browser, updating live."
+command = ["/bin/sh", "herdr/open-web.sh"]

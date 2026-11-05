@@ -30,6 +30,7 @@ node bin/skillmap.mjs <project-folder> --open
 - [How connections are derived](#how-connections-are-derived)
 - [What it surfaces (Insights)](#what-it-surfaces-insights)
 - [Runtime: what actually happened (OpenCode, Claude Code)](#runtime-what-actually-happened-opencode-claude-code)
+- [Live mode and the herdr plugin](#live-mode-and-the-herdr-plugin)
 - [Usage](#usage)
 - [Keyboard](#keyboard)
 - [Layout](#layout)
@@ -425,15 +426,83 @@ with [gitleaks](https://github.com/gitleaks/gitleaks):
 gitleaks dir .skillmap/skillmap.html --redact -v
 ```
 
+## Live mode and the herdr plugin
+
+### `--watch`: the Runtime view, live
+
+```bash
+skillmap . --watch --open
+```
+
+Instead of writing a file, SkillMap serves the report on
+`http://127.0.0.1:4317/` (change it with `--port`) and pushes new session data
+to the page whenever a session changes: new sessions appear, an open session's
+steps, tools and subagents grow, and the timeline follows the latest step if
+you were on it. Sessions that wrote in the last two minutes get a **live**
+badge. Skills and agents are scanned once; restart to pick up edits to them.
+
+It watches the files the runtimes already write, so there is nothing to
+install in them: Claude Code's transcripts under `~/.claude/projects` (only
+the lines appended since the last reload are parsed) and OpenCode's SQLite
+database. OpenCode only shows progress when it writes a message to its
+database. The server listens on 127.0.0.1 only and refuses other host names,
+since the data holds your prompts and commands.
+
+### herdr plugin
+
+[herdr](https://herdr.dev) knows which agent runs in each pane and which
+session it has open; SkillMap knows what that session is doing. The plugin
+puts the two together: a split beside the agent with its session, live.
+
+```bash
+herdr plugin link /path/to/skillmap
+```
+
+Then bind keys to its actions in `~/.config/herdr/config.toml`:
+
+| Action | What it does |
+| --- | --- |
+| `open-live` | Opens a split beside the focused agent showing its current session (run it again to close it) |
+| `open-web` | Opens the live Runtime view for the agent's folder in the browser; starts `skillmap --watch` in its own herdr tab if it isn't running (close the tab to stop it) |
+
+The split has two screens, both usable with the keyboard or the mouse (click
+to select, click again to open, wheel to scroll):
+
+- **Agents**: every Claude Code and OpenCode agent in herdr, working ones
+  first, with folder, context size, estimated cost and number of alerts.
+  `Enter` opens one, `a` jumps to its pane.
+- **Session**: the agent's current session, in tabs (`1`–`5`, `Tab`, `←` `→`
+  or a click):
+  - *Overview*: what it is doing now (the tool running and for how long,
+    thinking, or waiting for you), tokens, context, running subagents, the
+    latest alerts and tool calls.
+  - *Tools*: every call; `Enter` shows its full input, error and output size.
+  - *Subagents*: `Enter` opens one with the same tabs; `Esc` goes back up.
+  - *Prompts*: what you asked each turn, with its tokens and outcome.
+  - *Alerts*: hotspots and flagged delegations; `Enter` jumps to the tool call.
+
+From a session you can act on the agent through herdr: `a` focus its pane,
+`o` open the selected tool's file in the herdr-file-viewer plugin (if
+installed), and, after a confirmation, `p` send it a prompt or `x` interrupt
+it (sends `Esc` to its pane). Also `f` follow herdr's focus, `w` web view,
+`r` reload, `q` quit.
+
+Outside herdr, `skillmap live` opens the newest session in the current folder,
+or the one named by `SKILLMAP_AGENT` (`claude` or `opencode`) and
+`SKILLMAP_SESSION`.
+
 ## Usage
 
 ```
 skillmap <project-folder> [options]
 skillmap trace [project-folder] [options]
+skillmap live
 
   -o, --out <file>      Output HTML file   (default: <project>/.skillmap/skillmap.html)
   -j, --json <file>     Also write the raw graph as JSON (for scripting/CI)
       --open            Open the report in your browser
+      --watch           Serve the report on localhost and update it live
+      --port <n>        Port for --watch (default 4317)
       --no-trace        Skip the Runtime tab
       --include-thinking
                         Embed the model's reasoning text in the report
@@ -454,7 +523,8 @@ subagents, flagged delegations, sessions with the most waste) and, with
 `-j`, writes the traces and analysis as JSON.
 
 The output is a single HTML file with the data inlined — no server, no
-network. Open it anywhere. If no skills, agents or instruction files are
+network. Open it anywhere. (`--watch` is the exception: it serves the report
+locally instead.) If no skills, agents or instruction files are
 found, nothing is written and the command exits with an error.
 
 ## Keyboard
@@ -479,13 +549,18 @@ bin/skillmap.mjs        CLI entry point
 lib/scan.mjs            recursive scanner + frontmatter parser
 lib/analyze.mjs         graph builder, duplicate/unused/cycle analysis
 lib/report.mjs          inlines assets + data into one HTML file
+lib/serve.mjs           --watch server (report + Server-Sent Events)
+lib/live.mjs            `skillmap live`: terminal view of one session
 lib/runtime/model.mjs   normalized trace model shared by runtime adapters
 lib/runtime/opencode.mjs  OpenCode adapter (reads the local SQLite store)
 lib/runtime/claude.mjs  Claude Code adapter (reads the JSONL transcripts)
+lib/runtime/load.mjs    loads and merges sessions from the selected runtimes
+lib/runtime/watch.mjs   watches the session stores for --watch and the live pane
 lib/runtime/analyze.mjs effectiveness, decisions, delegations, hotspots
 assets/template.html    page shell
 assets/app.css          styling
 assets/app.js           diagram, graph, hierarchy, insights and runtime views
 examples/demo-project   fake project used for the screenshots
 docs/images             screenshots
+herdr-plugin.toml, herdr/  herdr plugin manifest and launchers
 ```
