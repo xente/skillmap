@@ -1512,7 +1512,8 @@
     if (atEnd) tl.cur = Infinity; // was watching the latest step: follow the new ones
     keep('session', renderSession);
   }
-  const costTxt = (t, n, digits) => (t.costEstimated ? '≈ $' : '$') + n.toFixed(digits);
+  // OpenCode records the provider's cost, 0 for some (subscriptions, free models)
+  const costTxt = (t, n, digits) => !t.costEstimated && !n && tokTotal(t.tokens) ? 'no cost' : (t.costEstimated ? '≈ $' : '$') + n.toFixed(digits);
   function variantChip(v, mismatch) {
     if (!v) return null;
     return h('span', { class: 'rt-var v-' + v + (mismatch ? ' mismatch' : ''), title: VARIANT_TIP }, 'thinking: ' + v);
