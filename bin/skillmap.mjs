@@ -39,7 +39,8 @@ Options:
       --open         Open the report in your browser
       --watch        Serve the report on localhost and update the Runtime tab
                      live as sessions change (instead of writing a file)
-      --port <n>     Port for --watch (default 4317)
+      --port <n>     Port for --watch (default 4317; if taken by another
+                     project's server, the next free one is used)
       --no-trace     Skip the Runtime tab (OpenCode / Claude Code session traces)
       --include-thinking
                      Embed the model's reasoning text in the report (large; may
@@ -77,7 +78,7 @@ function parseArgs(argv) {
     else if (a === '--open') args.open = true;
     else if (a === '--all') args.all = true;
     else if (a === '--watch') args.watch = true;
-    else if (a === '--port') args.port = Number(value(++i, a));
+    else if (a === '--port') { args.port = Number(value(++i, a)); args.portSet = true; }
     else if (a === '--no-trace') args.trace = false;
     else if (a === '--include-thinking') args.thinking = true;
     else if (a === '--since') args.since = value(++i, a);
@@ -181,11 +182,11 @@ async function serveLive(root, args, scanned) {
   let sent = JSON.stringify(runtime);
   let server;
   try {
-    server = await serveReport({ port: args.port, root, payload: () => buildPayload({ root, ...scanned, runtime }) });
+    server = await serveReport({ port: args.port, strict: args.portSet, root, payload: () => buildPayload({ root, ...scanned, runtime }) });
   } catch (err) {
     if (err.code !== 'SKILLMAP_RUNNING') throw err;
     line(`  ${err.message}`);
-    if (args.open) openBrowser(`http://127.0.0.1:${args.port}/`);
+    if (args.open) openBrowser(`http://127.0.0.1:${err.port}/`);
     return;
   }
   line('');

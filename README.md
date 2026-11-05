@@ -435,11 +435,16 @@ skillmap . --watch --open
 ```
 
 Instead of writing a file, SkillMap serves the report on
-`http://127.0.0.1:4317/` (change it with `--port`) and pushes new session data
+`http://127.0.0.1:4317/` and pushes new session data
 to the page whenever a session changes: new sessions appear, an open session's
 steps, tools and subagents grow, and the timeline follows the latest step if
 you were on it. Sessions that wrote in the last two minutes get a **live**
 badge. Skills and agents are scanned once; restart to pick up edits to them.
+
+Each project folder gets its own server: if 4317 already serves another
+folder, the next free port is used (the command prints it). Running it again
+for a folder that is already served just opens that server. `--port <n>` pins
+the port and fails if it is taken.
 
 It watches the files the runtimes already write, so there is nothing to
 install in them: Claude Code's transcripts under `~/.claude/projects` (only
@@ -468,30 +473,41 @@ Then bind keys to its actions in `~/.config/herdr/config.toml`:
 The split has two screens, both usable with the keyboard or the mouse (click
 to select, click again to open, wheel to scroll):
 
-- **Agents**: every Claude Code and OpenCode agent in herdr, working ones
-  first, with folder, context size, estimated cost and number of alerts.
-  `Enter` opens one, `a` jumps to its pane.
-- **Session**: the agent's current session, in tabs (`1`–`5`, `Tab`, `←` `→`
+- **Agents**: the Claude Code and OpenCode agents in the workspace the pane
+  was opened in, working ones first, with folder, context size, cost and
+  number of alerts. `t` switches to every workspace (then the second column
+  names each agent's workspace). `Enter` opens one, `a` jumps to its pane.
+- **Session**: the agent's current session, in tabs (`1`–`6`, `Tab`, `←` `→`
   or a click):
   - *Overview*: what it is doing now (the tool running and for how long,
     thinking, or waiting for you), tokens, context, running subagents, the
-    latest alerts and tool calls.
-  - *Tools*: every call; `Enter` shows its full input, error and output size.
+    latest alerts and the recent actions. Select an action (`↑` `↓`) and press
+    `Enter` for its details. A ✎ marks the calls the model reasoned before.
+  - *Tools*: every call; `Enter` shows its full input, error, output size and
+    the reasoning of the model step that made it.
   - *Subagents*: `Enter` opens one with the same tabs; `Esc` goes back up.
   - *Prompts*: what you asked each turn, with its tokens and outcome.
   - *Alerts*: hotspots and flagged delegations; `Enter` jumps to the tool call.
+  - *Thinking*: every reasoning block with when it happened and how long it
+    lasted (the same blocks an action's detail shows, here in order). The text
+    is opt-in, since it can hold anything that was in the session: press `T`,
+    in this tab or in an action's detail, or start with
+    `skillmap live --include-thinking`, to load it. OpenCode stores the text;
+    Claude Code keeps it for only a few blocks and usually just records the
+    duration, which is said instead of showing an empty block.
 
 From a session you can act on the agent through herdr: `a` focus its pane,
 `o` open the selected tool's file in the herdr-file-viewer plugin (if
 installed), and, after a confirmation, `p` send it a prompt or `x` interrupt
 it (sends `Esc` to its pane, twice for OpenCode, which asks for a second one).
+Also `s` flips the lists between oldest first (the default) and newest first,
+`f` follows herdr's focus, `w` opens the web view, `r` reloads and `q` quits.
 
 Claude Code and OpenCode agents work the same way. Costs follow each runtime:
 Claude Code's are estimates (≈); OpenCode's are what it recorded, shown as
 "no cost" when the provider reports none (subscriptions, free models). Claude
 Code sessions refresh as their transcript grows; OpenCode ones whenever its
-database changes. Also `f` follow herdr's focus, `w` web view,
-`r` reload, `q` quit.
+database changes.
 
 Outside herdr, `skillmap live` opens the newest session in the current folder,
 or the one named by `SKILLMAP_AGENT` (`claude` or `opencode`) and
@@ -508,7 +524,7 @@ skillmap live
   -j, --json <file>     Also write the raw graph as JSON (for scripting/CI)
       --open            Open the report in your browser
       --watch           Serve the report on localhost and update it live
-      --port <n>        Port for --watch (default 4317)
+      --port <n>        Port for --watch (default: first free from 4317)
       --no-trace        Skip the Runtime tab
       --include-thinking
                         Embed the model's reasoning text in the report
