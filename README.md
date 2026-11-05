@@ -484,7 +484,13 @@ to select, click again to open, wheel to scroll):
 From a session you can act on the agent through herdr: `a` focus its pane,
 `o` open the selected tool's file in the herdr-file-viewer plugin (if
 installed), and, after a confirmation, `p` send it a prompt or `x` interrupt
-it (sends `Esc` to its pane). Also `f` follow herdr's focus, `w` web view,
+it (sends `Esc` to its pane, twice for OpenCode, which asks for a second one).
+
+Claude Code and OpenCode agents work the same way. Costs follow each runtime:
+Claude Code's are estimates (≈); OpenCode's are what it recorded, shown as
+"no cost" when the provider reports none (subscriptions, free models). Claude
+Code sessions refresh as their transcript grows; OpenCode ones whenever its
+database changes. Also `f` follow herdr's focus, `w` web view,
 `r` reload, `q` quit.
 
 Outside herdr, `skillmap live` opens the newest session in the current folder,
