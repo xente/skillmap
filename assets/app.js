@@ -1433,7 +1433,8 @@
   function row(a, b) { return h('div', { class: 'row' }, a, b); }
 
   /* ================= runtime (session traces) ================= */
-  const RT = DATA.runtime;
+  // `let`: with --watch the server pushes fresh runtime data (see setRuntime)
+  let RT = null;
   const SPAN_COLOR = { agent: '#38bdf8', skill: '#a78bfa', read: '#64748b', search: '#64748b', edit: '#34d399', exec: '#f59e0b', web: '#f472b6', mcp: '#2dd4bf', other: '#7c8aa3', think: '#e879f9' };
   const FLAG_LABEL = { failed: 'failed', cancelled: 'cancelled', trivial: 'trivial', lookup: 'simple lookup', redone: 'work redone', duplicate: 'duplicate' };
   const HOW_LABEL = { 'user-attached': 'you attached it', 'user-named': 'you named it', 'model-chose': 'model chose', 'subagent-chose': 'subagent chose' };
@@ -1450,14 +1451,8 @@
   const nodeByName = (name) => N.find(n => n.name === name || n.slug === name) || null;
 
   const rtTraces = new Map(), rtRootOf = new Map();
-  if (RT) {
-    const index = (t, root) => { rtTraces.set(t.id, t); rtRootOf.set(t.id, root); t.children.forEach(c => index(c, root)); };
-    RT.traces.forEach(t => index(t, t.id));
-  }
   const rtKey = (traceId, spanId) => traceId + '|' + spanId;
-  const rtDecision = new Map(RT ? RT.analysis.decisions.map(d => [rtKey(d.traceId, d.spanId), d]) : []);
-  const rtDelegation = new Map(RT ? RT.analysis.delegations.map(d => [rtKey(d.traceId, d.spanId), d]) : []);
-  const rtSession = new Map(RT ? RT.analysis.sessions.map(x => [x.id, x]) : []);
+  const rtDecision = new Map(), rtDelegation = new Map(), rtSession = new Map();
   const rtState = { session: null, tab: 'overview', onlyKey: true, filter: '', sort: 'recent', focusSpan: null, stepFilter: 'all', lane: 'all' };
   const SESSION_SORT = {
     recent: ['Most recent', (a, b) => b.start - a.start],
@@ -1470,8 +1465,53 @@
   function* walkRt(t) { yield t; for (const c of t.children) yield* walkRt(c); }
   const VARIANT_TIP = 'Reasoning (effort) level the runtime sent with each call. “default” = no level sent, the provider decides.';
   const RT_LABEL = { opencode: 'OpenCode', 'claude-code': 'Claude Code' };
-  const rtSources = RT ? (RT.sources || [RT.source]) : [];
-  const rtLabel = rtSources.map(x => RT_LABEL[x] || x).join(' and ');
+  let rtSources = [], rtLabel = '';
+  function setRuntime(rt) {
+    RT = DATA.runtime = rt;
+    for (const m of [rtTraces, rtRootOf, rtDecision, rtDelegation, rtSession]) m.clear();
+    rtSources = RT ? (RT.sources || [RT.source]) : [];
+    rtLabel = rtSources.map(x => RT_LABEL[x] || x).join(' and ');
+    if (!RT) return;
+    const index = (t, root) => { rtTraces.set(t.id, t); rtRootOf.set(t.id, root); t.children.forEach(c => index(c, root)); };
+    RT.traces.forEach(t => index(t, t.id));
+    RT.analysis.decisions.forEach(d => rtDecision.set(rtKey(d.traceId, d.spanId), d));
+    RT.analysis.delegations.forEach(d => rtDelegation.set(rtKey(d.traceId, d.spanId), d));
+    RT.analysis.sessions.forEach(x => rtSession.set(x.id, x));
+  }
+  setRuntime(DATA.runtime);
+
+  // Live mode: served by `skillmap --watch`, which pushes the runtime on every change.
+  const LIVE = /^https?:$/.test(location.protocol) && 'EventSource' in window;
+  const LIVE_MS = 120000; // a session that wrote within this counts as live
+  let liveUp = false;
+  const lastActivity = (t) => Math.max(t.end, ...t.children.map(lastActivity));
+  const isLive = (t) => LIVE && Date.now() - lastActivity(t) < LIVE_MS;
+  function liveDot() {
+    if (!LIVE) return null;
+    return h('span', { class: 'rt-live' + (liveUp ? ' on' : ''), title: liveUp ? 'Updating as sessions change' : 'Disconnected from skillmap --watch; retrying' }, h('i', null, '●'), liveUp ? ' Live' : ' Offline');
+  }
+  function setLiveUp(up) {
+    liveUp = up;
+    document.querySelectorAll('.rt-live').forEach(el => el.replaceWith(liveDot()));
+  }
+  function applyRuntime(rt) {
+    const atEnd = tl.steps.length > 0 && tl.cur >= tl.steps.length - 1;
+    setRuntime(rt);
+    const keep = (id, render) => {
+      const el = document.getElementById(id), top = el.scrollTop;
+      const active = document.activeElement, focusSel = active && el.contains(active) && active.classList.contains('rt-filter') ? active.tagName : null;
+      const caret = focusSel === 'INPUT' ? active.selectionStart : null;
+      render();
+      el.scrollTop = top;
+      if (focusSel) { const f = el.querySelector(focusSel.toLowerCase() + '.rt-filter'); if (f) { f.focus(); if (caret != null) f.setSelectionRange(caret, caret); } }
+    };
+    keep('runtime', renderRuntime);
+    if (state.view !== 'session') return;
+    if (!rtTraces.has(rtState.session)) return route();
+    if (tl.timer) return; // don't interrupt a replay; the next render picks the data up
+    if (atEnd) tl.cur = Infinity; // was watching the latest step: follow the new ones
+    keep('session', renderSession);
+  }
   const costTxt = (t, n, digits) => (t.costEstimated ? '≈ $' : '$') + n.toFixed(digits);
   function variantChip(v, mismatch) {
     if (!v) return null;
@@ -1513,7 +1553,7 @@
   function renderRuntime() {
     const root = document.getElementById('runtime');
     root.innerHTML = '';
-    root.append(h('h2', null, 'Runtime'));
+    root.append(h('h2', null, 'Runtime ', liveDot()));
     if (!RT) {
       document.getElementById('runtimeCount').textContent = '–';
       root.append(h('p', { class: 'lead' }, 'No OpenCode or Claude Code sessions were found for this folder, so there is nothing to trace yet. Run either one here and regenerate the report (skillmap reads ~/.local/share/opencode/opencode.db, which needs Node 22.5+, and ~/.claude/projects). Use --since 365d to look further back.'));
@@ -1578,7 +1618,7 @@
         const S = rtSession.get(t.id);
         const first = t.prompts[0]?.text || '';
         body.append(h('tr', { class: 'rt-srow', tabindex: '0', onclick: () => openSession(t.id), onkeydown: (e) => { if (e.key === 'Enter') openSession(t.id); } },
-          h('td', { class: 'rt-scell' }, h('div', { class: 'rt-st' }, t.title || t.id), first ? h('div', { class: 'rt-sfirst', title: first }, first) : null,
+          h('td', { class: 'rt-scell' }, h('div', { class: 'rt-st' }, isLive(t) ? h('span', { class: 'rt-livebadge' }, 'live') : null, t.title || t.id), first ? h('div', { class: 'rt-sfirst', title: first }, first) : null,
             rtSources.length > 1 ? h('div', { class: 'muted' }, RT_LABEL[t.runtime] || t.runtime) : null),
           h('td', null, h('div', null, fmtDate(t.start)), h('span', { class: 'rt-out o-' + t.outcome }, t.outcome)),
           h('td', { class: 'num' }, fmtMs(t.activeMs)),
@@ -1728,7 +1768,7 @@
     root.append(h('div', { class: 'ss-top' },
       h('button', { class: 'chip ss-back', onclick: () => { location.hash = ''; setView('runtime'); } }, '← All sessions'),
       h('div', { class: 'ss-title' },
-        h('h2', null, t.title || t.id),
+        h('h2', null, t.title || t.id, ' ', isLive(t) ? h('span', { class: 'rt-livebadge' }, 'live') : null, liveDot()),
         h('div', { class: 'ss-sub' },
           h('span', { class: 'rt-out o-' + t.outcome }, t.outcome), ' · ', fmtDate(t.start), ' · ',
           h('b', null, fmtMs(t.activeMs)), ' active · agent ', h('b', null, t.agent || '–'), ' · model ', h('b', null, t.model || '–'), ' ', variantChip(t.variant),
@@ -2260,6 +2300,12 @@
   renderHierarchy();
   renderRuntime();
   renderDrawer();
+  if (LIVE) {
+    const es = new EventSource('/events');
+    es.onopen = () => setLiveUp(true);
+    es.onerror = () => setLiveUp(false);
+    es.addEventListener('runtime', (ev) => applyRuntime(JSON.parse(ev.data)));
+  }
   if (location.hash.startsWith('#session/')) route();
   resize();
   updateZoomLabel();
