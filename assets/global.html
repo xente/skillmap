@@ -51,7 +51,88 @@ button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
 #tip{position:fixed; pointer-events:none; background:#0b1020; border:1px solid var(--line2); border-radius:8px; padding:8px 10px; font-size:12px; display:none; z-index:10; max-width:300px; box-shadow:0 6px 24px rgba(0,0,0,.4)}
 #tip b{display:block; margin-bottom:2px}
 #tip .r{display:flex; justify-content:space-between; gap:14px}
-@media (max-width:600px){ main{padding:12px} .grid2{grid-template-columns:1fr} }
+#filters{display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; padding:10px 20px; border-bottom:1px solid var(--line); background:rgba(15,21,34,.5)}
+#filters select,#filters input{background:var(--panel2); color:var(--tx); border:1px solid var(--line2); border-radius:9px; padding:6px 10px; font:inherit; font-size:12.5px; max-width:240px}
+#filters input{min-width:200px}
+#filters select:focus-visible,#filters input:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+#filters .count{margin-left:auto; font-size:12px; color:var(--tx3)}
+.tablewrap{overflow-x:auto}
+table{width:100%; border-collapse:collapse; font-size:13px}
+th,td{padding:7px 10px; text-align:left; border-bottom:1px solid var(--line); white-space:nowrap}
+th{font-size:11.5px; color:var(--tx3); font-weight:650; text-transform:uppercase; letter-spacing:.04em}
+th button{all:unset; cursor:pointer; color:inherit; text-transform:inherit; letter-spacing:inherit}
+th button:hover,th button:focus-visible{color:var(--tx)}
+td.num,th.num{text-align:right; font-variant-numeric:tabular-nums}
+td.title{max-width:340px; overflow:hidden; text-overflow:ellipsis; color:var(--tx)}
+td.dim{color:var(--tx2)}
+tr:hover td{background:rgba(255,255,255,.02)}
+.tag{display:inline-block; padding:1px 8px; border-radius:99px; background:var(--panel2); border:1px solid var(--line2); font-size:11.5px; color:var(--tx2)}
+.more{margin-top:10px}
+.more button{background:var(--panel2); color:var(--tx); border:1px solid var(--line2); border-radius:9px; padding:6px 14px; font:inherit; font-size:12.5px; cursor:pointer}
+/* ---- look: icon KPI cards, badges, sparklines, project bars ---- */
+.kpis2{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px; margin-bottom:16px}
+.kpi2{background:linear-gradient(180deg,var(--panel2),var(--panel)); border:1px solid var(--line); border-radius:12px; padding:14px 16px 12px}
+.kpi2 .top{display:flex; align-items:center; justify-content:space-between; font-size:11.5px; font-weight:650; letter-spacing:.06em; text-transform:uppercase; color:var(--tx2)}
+.kpi2 .top svg{width:20px; height:20px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round}
+.kpi2 .val{font-size:32px; font-weight:700; letter-spacing:-.02em; line-height:1.15; margin:6px 0 2px}
+.kpi2 .sub{font-size:12.5px; color:var(--tx2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.badge{display:inline-flex; align-items:center; gap:5px; padding:2px 10px; border-radius:7px; font-size:11px; font-weight:700; letter-spacing:.04em; border:1px solid}
+.badge.ok{color:#34d399; background:rgba(52,211,153,.1); border-color:rgba(52,211,153,.35)}
+.badge.bad{color:#f87171; background:rgba(248,113,113,.1); border-color:rgba(248,113,113,.35)}
+.badge.warn{color:#fbbf24; background:rgba(251,191,36,.1); border-color:rgba(251,191,36,.35)}
+.badge.run{color:#38bdf8; background:rgba(56,189,248,.1); border-color:rgba(56,189,248,.35)}
+.badge.mute{color:var(--tx2); background:var(--panel2); border-color:var(--line2)}
+.avatar{display:inline-grid; place-items:center; width:22px; height:22px; border-radius:6px; font-size:11px; font-weight:700; margin-right:8px; vertical-align:middle; color:#0b0f17}
+.proj{display:flex; align-items:center; min-width:0}
+.proj span.t{overflow:hidden; text-overflow:ellipsis}
+.spark{display:inline-flex; align-items:flex-end; gap:2px; height:22px; margin-left:10px; vertical-align:middle}
+.spark i{display:block; width:3px; min-height:2px; border-radius:1px; background:var(--tx3); opacity:.8}
+.cell{display:flex; align-items:center; justify-content:flex-end; gap:0}
+.pbar{display:flex; align-items:center; gap:10px; min-width:120px}
+.pbar b{font-weight:600; min-width:2ch; text-align:right; font-variant-numeric:tabular-nums}
+.pbar .track{flex:1; height:6px; border-radius:99px; background:var(--panel2); overflow:hidden}
+.pbar .track i{display:block; height:100%; border-radius:99px}
+.pager{display:flex; align-items:center; justify-content:center; gap:14px; margin-top:12px; font-size:13px; color:var(--tx2)}
+.pager button{background:var(--panel2); color:var(--tx); border:1px solid var(--line2); border-radius:9px; padding:5px 14px; font:inherit; font-size:12.5px; cursor:pointer}
+.pager button:disabled{opacity:.4; cursor:default}
+table.rich th{background:rgba(255,255,255,.02); position:sticky; top:0}
+table.rich th,table.rich td{padding-left:7px; padding-right:7px}
+table.rich td{padding-top:10px; padding-bottom:10px}
+table.rich td.title{max-width:250px}
+table.rich .proj{max-width:165px}
+table.rich .spark{margin-left:7px}
+.card{background:linear-gradient(180deg,rgba(21,29,46,.55),var(--panel))}
+dialog{background:var(--panel); color:var(--tx); border:1px solid var(--line2); border-radius:14px; padding:0; width:min(860px,94vw); max-height:88vh; box-shadow:0 20px 70px rgba(0,0,0,.6)}
+dialog::backdrop{background:rgba(5,8,14,.7)}
+.dhead{display:flex; gap:12px; align-items:flex-start; padding:16px 20px; border-bottom:1px solid var(--line)}
+.dhead h3{margin:0; font-size:16px; flex:1; overflow-wrap:anywhere}
+.dbody{padding:16px 20px 20px; overflow:auto; max-height:calc(88vh - 70px)}
+.dbody h4{margin:16px 0 8px; font-size:12px; color:var(--tx2); text-transform:uppercase; letter-spacing:.04em}
+.dbody h4:first-child{margin-top:0}
+.close,.copy{background:var(--panel2); color:var(--tx); border:1px solid var(--line2); border-radius:9px; padding:5px 12px; font:inherit; font-size:12.5px; cursor:pointer}
+.meta{display:flex; flex-wrap:wrap; gap:6px 18px; font-size:12.5px; color:var(--tx2); margin-top:6px}
+pre.cmd{margin:0; flex:1; background:var(--bg); border:1px solid var(--line); border-radius:9px; padding:8px 12px; font-size:12.5px; overflow-x:auto}
+.cmdrow{display:flex; gap:8px; align-items:stretch}
+.chips{display:flex; flex-wrap:wrap; gap:6px}
+tr[data-id]{cursor:pointer}
+tr[data-id]:focus-visible{outline:2px solid var(--accent); outline-offset:-2px}
+.app{display:grid; grid-template-columns:210px minmax(0,1fr); align-items:start; max-width:1480px; margin:0 auto}
+.app main{max-width:none; margin:0; padding:18px 20px 40px}
+nav#nav{position:sticky; top:0; padding:18px 12px; display:flex; flex-direction:column; gap:4px}
+nav#nav a{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:9px 12px; border-radius:10px; color:var(--tx2); text-decoration:none; font-weight:600; font-size:13.5px; border:1px solid transparent}
+nav#nav a:hover{background:var(--panel2); color:var(--tx)}
+nav#nav a[aria-current="page"]{background:var(--panel2); color:var(--tx); border-color:var(--line2); box-shadow:inset 3px 0 0 var(--accent)}
+nav#nav a:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+nav#nav .n{font-size:11px; font-weight:700; color:var(--tx3); background:var(--bg); border-radius:99px; padding:1px 8px}
+.pagehead{display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 14px; margin-bottom:14px}
+.pagehead h2{margin:0; font-size:20px; font-weight:650; letter-spacing:-.01em}
+.pagehead p{margin:0; font-size:12.5px; color:var(--tx3)}
+@media (max-width:860px){
+  .app{grid-template-columns:1fr}
+  nav#nav{position:static; flex-direction:row; overflow-x:auto; padding:10px 12px 0}
+  nav#nav a{white-space:nowrap}
+}
+@media (max-width:600px){ .app main{padding:12px} .grid2{grid-template-columns:1fr} }
 </style>
 </head>
 <body>
@@ -62,8 +143,18 @@ button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
     <div class="seg" id="range" role="group" aria-label="Period"></div>
   </div>
 </header>
-<main id="main"></main>
+<div id="filters">
+  <label class="lbl" for="fClient">Editor / client</label><select id="fClient"></select>
+  <label class="lbl" for="fProject">Project</label><select id="fProject"></select>
+  <input id="fSearch" type="search" placeholder="Search title, model, agent…" aria-label="Search sessions" autocomplete="off" />
+  <span class="count" id="count"></span>
+</div>
+<div class="app">
+  <nav id="nav" aria-label="Sections"></nav>
+  <main id="main" tabindex="-1"></main>
+</div>
 <div id="tip" role="tooltip"></div>
+<dialog id="dlg" aria-label="Session detail"><div id="dlgBody"></div></dialog>
 <script>
 const DATA = __DATA__;
 const $ = (s) => document.querySelector(s);
@@ -76,6 +167,19 @@ const fmtMs = (ms) => ms >= 3600000 ? (ms / 3600000).toFixed(1) + ' h' : ms >= 6
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const tokAll = (t) => t.input + t.output + t.reasoning + t.cacheRead + t.cacheWrite;
 const tokLive = (t) => t.input + t.output + t.reasoning + t.cacheWrite; // everything but cache reads
+
+const ICONS = {
+  pulse: '<svg viewBox="0 0 24 24"><path d="M3 12h4l2.5-7 5 14 2.5-7H21"/></svg>',
+  layers: '<svg viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/></svg>',
+  dollar: '<svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>',
+  clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  map: '<svg viewBox="0 0 24 24"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z"/><path d="M9 4v14M15 6v14"/></svg>',
+};
+const hash = (str) => { let h = 0; for (const c of str) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
+const avatar = (dir) => { const label = projectOf({ directory: dir }); const base = label.split('/').pop() || '?'; return `<span class="avatar" style="background:${css(PALETTE[hash(dir || '') % PALETTE.length])}" aria-hidden="true">${esc(base[0].toUpperCase())}</span>`; };
+const spark = (vals, color) => { const max = Math.max(...vals, 1); return `<span class="spark" aria-hidden="true">${vals.map((v) => `<i style="height:${Math.max(2, Math.round((v / max) * 22))}px${color ? `; background:${color}` : ''}"></i>`).join('')}</span>`; };
+const RESULT = { completed: ['COMPLETED', 'ok'], error: ['ERROR', 'bad'], aborted: ['ABORTED', 'warn'], empty: ['EMPTY', 'mute'] };
+const resultOf = (t) => (t.outcome === 'incomplete' ? (Date.now() - t.end < 300000 ? ['RUNNING', 'run'] : ['INCOMPLETE', 'mute']) : RESULT[t.outcome] || [String(t.outcome).toUpperCase(), 'mute']);
 
 const RUNTIME = { opencode: 'OpenCode', 'claude-code': 'Claude Code' };
 const CLIENT = { cli: 'Terminal', 'claude-vscode': 'VS Code', 'claude-desktop': 'Desktop', 'sdk-ts': 'SDK', 'sdk-py': 'SDK', 'sdk-cli': 'SDK', 'mcp': 'MCP', 'local-agent': 'Desktop agent' };
@@ -95,7 +199,9 @@ const GROUPS = {
 };
 const RANGES = [['7d', 7], ['30d', 30], ['all', 0]];
 
-const st = { metric: 'cost', group: 'project', range: '30d' };
+const VIEWS = [['overview', 'Overview'], ['sessions', 'Sessions'], ['usage', 'Skills & MCP']];
+const viewFromHash = () => { const v = location.hash.slice(1); return VIEWS.some(([k]) => k === v) ? v : 'overview'; };
+const st = { view: viewFromHash(), metric: 'cost', group: 'project', range: '30d', client: '', project: '', q: '', sort: 'start', page: 0, usage: 'skills', usageLimit: 25 };
 const dayStart = (t) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
 // a calendar day later: days are 23 or 25 hours long when the clocks change
 const addDays = (t, n) => { const d = new Date(t); d.setDate(d.getDate() + n); return d.getTime(); };
@@ -103,15 +209,39 @@ const addDays = (t, n) => { const d = new Date(t); d.setDate(d.getDate() + n); r
 const niceStep = (x) => { const p = 10 ** Math.floor(Math.log10(x)); const f = x / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p; };
 const dayLabel = (t) => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
-function visibleRows() {
+function periodRows() {
   const days = RANGES.find(([k]) => k === st.range)[1];
   const from = days ? addDays(dayStart(Date.now()), -(days - 1)) : 0;
   return DATA.rows.filter((r) => r.start >= from);
 }
+// a subagent session follows its parent's client and project filters
+const sessionIndex = new Map(DATA.rows.map((r) => [r.id, r]));
+const rootOf = (r) => { while (r.parent && sessionIndex.has(r.parent)) r = sessionIndex.get(r.parent); return r; };
+const haystack = (r) => [r.title, r.model, r.agent, r.directory].join(' ').toLowerCase();
+function visibleRows() {
+  const q = st.q.trim().toLowerCase();
+  return periodRows().filter((r) => {
+    const root = rootOf(r);
+    return (!st.client || clientOf(root) === st.client) && (!st.project || root.directory === st.project) && (!q || haystack(r).includes(q) || haystack(root).includes(q));
+  });
+}
+
+function fillSelect(el, key, entries, all) {
+  el.innerHTML = `<option value="">${esc(all)}</option>` + entries.map(([v, label]) => `<option value="${esc(v)}"${st[key] === v ? ' selected' : ''}>${esc(label)}</option>`).join('');
+  el.onchange = () => { st[key] = el.value; st.page = 0; render(); };
+}
+function renderFilters() {
+  const rows = periodRows().map(rootOf);
+  fillSelect($('#fClient'), 'client', [...new Set(rows.map(clientOf))].sort().map((c) => [c, c]), 'All');
+  const dirs = new Map();
+  for (const r of rows) dirs.set(r.directory, projectOf(r));
+  fillSelect($('#fProject'), 'project', [...dirs].sort((a, b) => a[1].localeCompare(b[1])), 'All projects');
+}
+$('#fSearch').oninput = (e) => { st.q = e.target.value; st.page = 0; render(); };
 
 function seg(el, options, key) {
   el.innerHTML = options.map(([k, label]) => `<button type="button" data-k="${k}" aria-pressed="${st[key] === k}">${esc(label)}</button>`).join('');
-  el.onclick = (e) => { const b = e.target.closest('button'); if (b) { st[key] = b.dataset.k; render(); } };
+  el.onclick = (e) => { const b = e.target.closest('button'); if (b) { st[key] = b.dataset.k; if (key === 'usage') st.usageLimit = 25; st.page = 0; render(); } };
 }
 
 function render() {
@@ -119,11 +249,15 @@ function render() {
   const M = METRICS[st.metric], G = GROUPS[st.group];
   $('#sub').textContent = `${[...new Set(DATA.rows.map((r) => RUNTIME[r.runtime]))].join(' + ') || 'no sessions'} · sessions of the last ${DATA.since} · generated ${new Date(DATA.generatedAt).toLocaleString()}`;
   seg($('#range'), RANGES.map(([k]) => [k, k === 'all' ? 'All loaded' : 'Last ' + k]), 'range');
+  renderFilters();
 
   const main = $('#main');
-  if (!rows.length) { main.innerHTML = '<div class="empty">No sessions in this period.</div>'; return; }
-
   const top = rows.filter((r) => !r.parent);
+  $('#count').textContent = `${top.length} session${top.length === 1 ? '' : 's'}`;
+  const counts = { sessions: top.length };
+  $('#nav').innerHTML = VIEWS.map(([k, label]) => `<a href="#${k}" ${st.view === k ? 'aria-current="page"' : ''}>${label}${counts[k] != null ? `<span class="n">${counts[k]}</span>` : ''}</a>`).join('');
+  if (!rows.length) { main.innerHTML = '<div class="empty">No sessions match.</div>'; return; }
+
   const total = rows.reduce((a, r) => { for (const k in r.tokens) a[k] += r.tokens[k]; a.cost += r.cost; a.ms += r.activeMs; return a; }, { input: 0, output: 0, reasoning: 0, cacheRead: 0, cacheWrite: 0, cost: 0, ms: 0 });
   const est = rows.some((r) => r.costEstimated);
   const tokSum = tokAll(total);
@@ -152,13 +286,18 @@ function render() {
   const dayTotal = (d) => [...(byDay.get(d)?.values() || [])].reduce((a, b) => a + b, 0);
   const max = niceStep(Math.max(...days.map(dayTotal), 1e-9) / 4) * 4;
 
-  main.innerHTML = `
-    <div class="kpis">
-      <div class="kpi"><b>${top.length}</b><span>sessions${rows.length > top.length ? ` + ${rows.length - top.length} subagent` : ''}</span></div>
-      <div class="kpi"><b>${fmtTok(tokSum)}</b><span>tokens (${fmtTok(total.cacheRead)} cache reads)</span></div>
-      <div class="kpi"><b>${est ? '≈' : ''}${fmtCost(total.cost)}</b><span>cost${est ? ' (Claude Code: estimated from list prices)' : ''}</span></div>
-      <div class="kpi"><b>${fmtMs(total.ms)}</b><span>agent active time</span></div>
-      <div class="kpi"><b>${new Set(top.map(projectOf)).size}</b><span>projects</span></div>
+  const perDay = (top.length / Math.max(1, days.length)).toFixed(1);
+  const bySessions = new Map();
+  for (const r of top) bySessions.set(projectOf(r), (bySessions.get(projectOf(r)) || 0) + 1);
+  const busiest = [...bySessions].sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+  const overview = `
+    <div class="pagehead"><h2>Overview</h2><p>Tokens and cost across every project in the selection.</p></div>
+    <div class="kpis2">
+      <div class="kpi2"><div class="top">Sessions ${ICONS.pulse.replace('<svg','<svg style="color:#34d399"')}</div><div class="val" style="color:#34d399">${top.length}</div><div class="sub">${perDay} per day${rows.length > top.length ? ` · +${rows.length - top.length} subagent` : ''}</div></div>
+      <div class="kpi2"><div class="top">Total tokens ${ICONS.layers.replace('<svg','<svg style="color:#38bdf8"')}</div><div class="val" style="color:#38bdf8">${fmtTok(tokSum)}</div><div class="sub">Cache reads ${fmtTok(total.cacheRead)}</div></div>
+      <div class="kpi2"><div class="top">Total cost ${ICONS.dollar.replace('<svg','<svg style="color:#fbbf24"')}</div><div class="val" style="color:#fbbf24">${est ? '≈' : ''}${fmtCost(total.cost)}</div><div class="sub">${est ? (rows.some((r) => !r.costEstimated && r.cost) ? 'Estimated + reported' : 'Estimated from list prices') : 'Reported by the runtime'}</div></div>
+      <div class="kpi2"><div class="top">Agent active time ${ICONS.clock.replace('<svg','<svg style="color:#c084fc"')}</div><div class="val" style="color:#c084fc">${fmtMs(total.ms)}</div><div class="sub">avg ${fmtMs(total.ms / Math.max(1, top.length))} per session</div></div>
+      <div class="kpi2"><div class="top">Projects ${ICONS.map.replace('<svg','<svg style="color:#f472b6"')}</div><div class="val" style="color:#f472b6">${new Set(top.map(projectOf)).size}</div><div class="sub" title="${esc(busiest)}">Most active: ${esc(busiest)}</div></div>
     </div>
 
     <section class="card">
@@ -192,9 +331,159 @@ function render() {
       </section>
     </div>`;
 
-  seg($('#metric'), Object.entries(METRICS).map(([k, m]) => [k, m.label]), 'metric');
-  seg($('#group'), Object.entries(GROUPS).map(([k, g]) => [k, g.label]), 'group');
-  drawChart(days, byDay, order, color, max, M);
+  if (st.view === 'sessions') {
+    main.innerHTML = `<div class="pagehead"><h2>Sessions</h2><p>Every session with its subagents added up. Click a row for the detail.</p></div>
+      <section class="card"><div class="tablewrap" id="history"></div></section>`;
+    drawHistory(rows, top, est);
+  } else if (st.view === 'usage') {
+    main.innerHTML = `<div class="pagehead"><h2>Skills &amp; MCP</h2><p>What the agents called in the sessions on screen.</p></div>
+      <section class="card"><div class="controls"><div class="seg" id="usageTab" role="group" aria-label="Kind"></div></div><div class="tablewrap" id="usageTable"></div></section>`;
+    drawUsage(rows);
+  } else {
+    main.innerHTML = overview;
+    seg($('#metric'), Object.entries(METRICS).map(([k, m]) => [k, m.label]), 'metric');
+    seg($('#group'), Object.entries(GROUPS).map(([k, g]) => [k, g.label]), 'group');
+    drawChart(days, byDay, order, color, max, M);
+  }
+}
+
+const PAGE = 20;
+function drawHistory(rows, top, est) {
+  // each session with its subagents' tokens, cost and time added
+  const agg = new Map(top.map((t) => [t.id, { subs: 0, tokens: tokAll(t.tokens), cost: t.cost, ms: t.activeMs }]));
+  for (const r of rows) {
+    if (!r.parent) continue;
+    const a = agg.get(rootOf(r).id);
+    if (a) { a.subs++; a.tokens += tokAll(r.tokens); a.cost += r.cost; a.ms += r.activeMs; }
+  }
+  const sorters = { start: (a, b) => b.start - a.start, tokens: (a, b) => agg.get(b.id).tokens - agg.get(a.id).tokens, cost: (a, b) => agg.get(b.id).cost - agg.get(a.id).cost, ms: (a, b) => agg.get(b.id).ms - agg.get(a.id).ms };
+  const list = [...top].sort(sorters[st.sort]);
+  const pages = Math.max(1, Math.ceil(list.length / PAGE));
+  st.page = Math.min(st.page, pages - 1);
+  const th = (key, label, cls = '') => `<th class="${cls}" aria-sort="${st.sort === key ? 'descending' : 'none'}"><button type="button" data-sort="${key}">${label}${st.sort === key ? ' ↓' : ''}</button></th>`;
+  const when = (t) => new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  const el = $('#history');
+  el.innerHTML = `<table class="rich">
+    <thead><tr>${th('start', 'Started')}<th>Project</th><th>Session</th><th>Client</th><th>Model</th>${th('ms', 'Active time', 'num')}${th('tokens', 'Tokens', 'num')}${th('cost', 'Cost', 'num')}<th>Result</th></tr></thead>
+    <tbody>${list.slice(st.page * PAGE, (st.page + 1) * PAGE).map((t) => {
+      const a = agg.get(t.id), [label, tone] = resultOf(t);
+      return `<tr data-id="${esc(t.id)}" tabindex="0" role="button" aria-label="Open session ${esc(t.title || t.id)}">
+        <td class="dim">${when(t.start)}</td>
+        <td title="${esc(t.directory)}"><span class="proj">${avatar(t.directory)}<span class="t">${esc(projectOf(t))}</span></span></td>
+        <td class="title" title="${esc(t.title || t.id)}">${esc(t.title || t.id)}${a.subs ? ` <span class="tag">+${a.subs} sub</span>` : ''}</td>
+        <td><span class="tag">${esc(clientOf(t))}</span></td>
+        <td class="dim">${esc(t.model || '')}</td>
+        <td class="num"><span class="cell">${fmtMs(a.ms)}${spark(t.spark || [])}</span></td>
+        <td class="num">${fmtTok(a.tokens)}</td>
+        <td class="num">${t.costEstimated ? '≈' : ''}${fmtCost(a.cost)}</td>
+        <td><span class="badge ${tone}">${label}</span></td></tr>`;
+    }).join('')}</tbody></table>
+    <div class="pager"><button type="button" id="prev" ${st.page === 0 ? 'disabled' : ''}>Previous</button><span>Page ${st.page + 1} of ${pages}</span><button type="button" id="next" ${st.page >= pages - 1 ? 'disabled' : ''}>Next</button></div>
+    <p class="note">Tokens, cost and time include each session's subagents.${est ? ' Claude Code costs are estimates.' : ''}</p>`;
+  el.onclick = (e) => {
+    const b = e.target.closest('button');
+    if (b) {
+      if (b.dataset.sort) { st.sort = b.dataset.sort; st.page = 0; render(); }
+      else if (b.id === 'prev') { st.page--; render(); }
+      else if (b.id === 'next') { st.page++; render(); }
+      return;
+    }
+    const tr = e.target.closest('tr[data-id]');
+    if (tr) openSession(tr.dataset.id);
+  };
+  el.onkeydown = (e) => {
+    const tr = e.target.closest('tr[data-id]');
+    if (tr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openSession(tr.dataset.id); }
+  };
+}
+
+// skills, subagent types and MCP servers across the sessions on screen, one kind at a time
+const USAGE = {
+  skills: { label: 'Skills', unit: 'Calls', pick: (u) => u.skills || {} },
+  agents: { label: 'Subagent types', unit: 'Runs', pick: (u) => u.agents || {} },
+  mcp: { label: 'MCP servers', unit: 'Calls', pick: (u) => u.mcp || {}, errors: true },
+};
+function drawUsage(rows) {
+  const U = USAGE[st.usage];
+  const startDay = Math.min(...rows.map((r) => dayStart(r.start)));
+  const nDays = Math.min(14, Math.round((dayStart(Date.now()) - startDay) / 86400000) + 1);
+  const dayIndex = (t) => nDays - 1 - Math.round((dayStart(Date.now()) - dayStart(t)) / 86400000);
+  const allProjects = new Set(rows.map((r) => rootOf(r).directory)).size;
+  const m = new Map();
+  for (const r of rows) {
+    const root = rootOf(r);
+    for (const [name, v] of Object.entries(U.pick(r.usage || {}))) {
+      const e = m.get(name) || { calls: 0, errors: 0, sessions: new Set(), projects: new Set(), tools: {}, last: 0, perDay: new Array(nDays).fill(0), sessDay: new Array(nDays).fill(0) };
+      const c = v.calls ?? v;
+      e.calls += c;
+      e.errors += v.errors || 0;
+      e.sessions.add(root.id);
+      e.projects.add(root.directory);
+      e.last = Math.max(e.last, r.start);
+      const i = dayIndex(r.start);
+      if (i >= 0) { e.perDay[i] += c; e.sessDay[i] += 1; }
+      for (const [t, n] of Object.entries(v.tools || {})) e.tools[t] = (e.tools[t] || 0) + n;
+      m.set(name, e);
+    }
+  }
+  const list = [...m].sort((a, b) => b[1].calls - a[1].calls);
+  const counts = Object.fromEntries(Object.entries(USAGE).map(([k, u]) => [k, new Set(rows.flatMap((r) => Object.keys(u.pick(r.usage || {})))).size]));
+  seg($('#usageTab'), Object.entries(USAGE).map(([k, u]) => [k, `${u.label} ${counts[k]}`]), 'usage');
+  const when = (t) => new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  const el = $('#usageTable');
+  el.innerHTML = list.length ? `<table class="rich">
+      <thead><tr><th>${esc(U.label.replace(/s$/, ''))}</th><th class="num">${U.unit}</th>${U.errors ? '<th class="num">Errors</th>' : ''}<th class="num">Sessions</th><th>Projects</th><th>Last used</th>${U.errors ? '<th>Tools</th>' : ''}</tr></thead>
+      <tbody>${list.slice(0, st.usageLimit).map(([name, e], i) => {
+        const tone = css(PALETTE[(e.projects.size / Math.max(1, allProjects) > 0.5 ? 2 : e.projects.size / Math.max(1, allProjects) > 0.2 ? 7 : 3)]);
+        return `<tr><td class="title" title="${esc(name)}"><span class="proj"><span class="avatar" style="background:${css(PALETTE[hash(name) % PALETTE.length])}" aria-hidden="true">${esc(name[0].toUpperCase())}</span><span class="t">${esc(name)}</span></span></td>
+          <td class="num"><span class="cell">${e.calls}${spark(e.perDay)}</span></td>${U.errors ? `<td class="num">${e.errors || ''}</td>` : ''}
+          <td class="num"><span class="cell">${e.sessions.size}${spark(e.sessDay)}</span></td>
+          <td><span class="pbar"><b>${e.projects.size}</b><span class="track"><i style="width:${(e.projects.size / Math.max(1, allProjects)) * 100}%; background:${tone}"></i></span></span></td>
+          <td class="dim">${when(e.last)}</td>${U.errors ? `<td class="dim" style="white-space:normal; max-width:380px">${Object.entries(e.tools).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([n, c]) => esc(n) + ' · ' + c).join(', ')}${Object.keys(e.tools).length > 6 ? ' …' : ''}</td>` : ''}</tr>`;
+      }).join('')}</tbody></table>
+      ${list.length > st.usageLimit ? `<div class="pager"><button type="button" id="moreUsage">Show more (${list.length - st.usageLimit} left)</button></div>` : ''}
+      <p class="note">Bars show calls and sessions per day over the last ${nDays} days; the project bar is the share of the ${allProjects} projects on screen.</p>`
+    : '<p class="note">None in this selection.</p>';
+  el.onclick = (e) => { if (e.target.closest('#moreUsage')) { st.usageLimit += 25; render(); } };
+}
+
+// one session: its numbers, its subagents and what it called
+function openSession(id) {
+  const t = sessionIndex.get(id);
+  if (!t) return;
+  const family = DATA.rows.filter((r) => rootOf(r).id === id);
+  const subs = family.filter((r) => r.parent);
+  const sum = (f) => family.reduce((n, r) => n + f(r), 0);
+  const tok = family.reduce((a, r) => { for (const k in r.tokens) a[k] = (a[k] || 0) + r.tokens[k]; return a; }, {});
+  const merge = (pick) => { const m = {}; for (const r of family) for (const [k, v] of Object.entries(pick(r.usage || {}))) m[k] = (m[k] || 0) + v; return m; };
+  const mcp = {};
+  for (const r of family) for (const [k, v] of Object.entries(r.usage?.mcp || {})) { const e = (mcp[k] ||= { calls: 0, errors: 0, tools: {} }); e.calls += v.calls; e.errors += v.errors; for (const [n, c] of Object.entries(v.tools)) e.tools[n] = (e.tools[n] || 0) + c; }
+  const chips = (obj, label) => { const e = Object.entries(obj).sort((a, b) => b[1] - a[1]); return `<h4>${label}</h4>` + (e.length ? `<div class="chips">${e.map(([k, n]) => `<span class="tag">${esc(k)} · ${n}</span>`).join('')}</div>` : '<p class="note">None.</p>'); };
+  const est = family.some((r) => r.costEstimated);
+  const cmd = `skillmap ${JSON.stringify(t.directory || '.')} --open`;
+  $('#dlgBody').innerHTML = `
+    <div class="dhead"><div style="flex:1"><h3>${esc(t.title || t.id)}</h3>
+      <div class="meta"><span>${esc(clientOf(t))}</span><span>${esc(t.model || '')}</span><span>${new Date(t.start).toLocaleString()}</span><span>${esc(t.outcome)}</span><span title="${esc(t.directory)}">${esc(t.directory)}</span></div></div>
+      <button class="close" type="button" id="dlgClose">Close</button></div>
+    <div class="dbody">
+      <div class="kpis" style="margin-bottom:0">
+        <div class="kpi"><b>${fmtTok(tokAll(tok))}</b><span>tokens (${fmtTok(tok.cacheRead || 0)} cache reads)</span></div>
+        <div class="kpi"><b>${est ? '≈' : ''}${fmtCost(sum((r) => r.cost))}</b><span>cost${subs.length ? ' with subagents' : ''}</span></div>
+        <div class="kpi"><b>${fmtMs(sum((r) => r.activeMs))}</b><span>agent active time</span></div>
+        <div class="kpi"><b>${subs.length}</b><span>subagent sessions</span></div>
+      </div>
+      ${chips(merge((u) => u.skills || {}), 'Skills')}
+      ${chips(merge((u) => u.agents || {}), 'Subagent types')}
+      <h4>MCP servers</h4>${Object.keys(mcp).length ? `<div class="tablewrap"><table><thead><tr><th>Server</th><th class="num">Calls</th><th class="num">Errors</th><th>Tools</th></tr></thead><tbody>${Object.entries(mcp).map(([k, e]) => `<tr><td>${esc(k)}</td><td class="num">${e.calls}</td><td class="num">${e.errors || ''}</td><td class="dim" style="white-space:normal">${Object.entries(e.tools).sort((a, b) => b[1] - a[1]).map(([n, c]) => esc(n) + ' · ' + c).join(', ')}</td></tr>`).join('')}</tbody></table></div>` : '<p class="note">None.</p>'}
+      ${chips(merge((u) => u.tools || {}), 'Built-in tools by kind')}
+      ${subs.length ? `<h4>Subagent sessions</h4><div class="tablewrap"><table><thead><tr><th>Agent</th><th>Task</th><th>Model</th><th class="num">Active</th><th class="num">Tokens</th><th class="num">Cost</th></tr></thead><tbody>${subs.sort((a, b) => a.start - b.start).map((r) => `<tr><td>${esc(r.agent || 'subagent')}</td><td class="title" title="${esc(r.title)}">${esc(r.title)}</td><td class="dim">${esc(r.model || '')}</td><td class="num">${fmtMs(r.activeMs)}</td><td class="num">${fmtTok(tokAll(r.tokens))}</td><td class="num">${r.costEstimated ? '≈' : ''}${fmtCost(r.cost)}</td></tr>`).join('')}</tbody></table></div>` : ''}
+      <h4>Open this project's full report</h4>
+      <div class="cmdrow"><pre class="cmd">${esc(cmd)}</pre><button class="copy" type="button" id="dlgCopy">Copy</button></div>
+    </div>`;
+  const dlg = $('#dlg');
+  $('#dlgClose').onclick = () => dlg.close();
+  $('#dlgCopy').onclick = (e) => { navigator.clipboard?.writeText(cmd).then(() => { e.target.textContent = 'Copied'; }, () => { e.target.textContent = 'Copy failed'; }); };
+  dlg.showModal();
 }
 
 function drawChart(days, byDay, order, color, max, M) {
@@ -238,6 +527,10 @@ function drawChart(days, byDay, order, color, max, M) {
   };
   svg.onmouseleave = () => { $('#tip').style.display = 'none'; };
 }
+
+$('#dlg').addEventListener('click', (e) => { if (e.target === e.currentTarget) e.currentTarget.close(); });
+
+addEventListener('hashchange', () => { st.view = viewFromHash(); render(); $('#main').focus({ preventScroll: true }); window.scrollTo(0, 0); });
 
 let resizeTimer;
 addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 120); });

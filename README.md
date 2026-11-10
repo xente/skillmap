@@ -30,6 +30,7 @@ node bin/skillmap.mjs <project-folder> --open
 - [How connections are derived](#how-connections-are-derived)
 - [What it surfaces (Insights)](#what-it-surfaces-insights)
 - [Runtime: what actually happened (OpenCode, Claude Code)](#runtime-what-actually-happened-opencode-claude-code)
+- [Global report: every project at once](#global-report-every-project-at-once)
 - [Live mode and the herdr plugin](#live-mode-and-the-herdr-plugin)
 - [Usage](#usage)
 - [Keyboard](#keyboard)
@@ -425,6 +426,37 @@ with [gitleaks](https://github.com/gitleaks/gitleaks):
 ```bash
 gitleaks dir .skillmap/skillmap.html --redact -v
 ```
+
+## Global report: every project at once
+
+```bash
+node bin/skillmap.mjs --global --open        # ~/.skillmap/global.html
+node bin/skillmap.mjs --global --since 90d -o global.html
+```
+
+One page for all the sessions of all your projects (Claude Code and OpenCode),
+instead of one folder. It has a sidebar with three sections (`#overview`,
+`#sessions`, `#usage`), and the period and filters at the top apply to all of
+them:
+
+- **Overview: tokens and cost per day**, split by project, editor/client, model or agent,
+  with the period (7 days, 30 days, all loaded) and the metric (cost, tokens,
+  tokens without cache reads) one click away. Cache reads are usually most of
+  the tokens, which is why that last view exists.
+- **Sessions**: the history, sortable, with filters by editor/client, project and
+  text. The filters apply to the whole page. Each row adds up the session's
+  subagents.
+- **Skills & MCP**: skills, subagent types and MCP servers used across the
+  sessions on screen, one list at a time: calls, errors, sessions, projects,
+  last use and, for MCP, the tools called.
+- **Click a session** for its tokens, subagent sessions, skills, MCP tools and
+  the command that opens that project's full report.
+
+The editor/client comes from Claude Code's `entrypoint` (terminal, VS Code…).
+OpenCode doesn't record it, so its sessions show as "OpenCode". A session counts
+on the day it started. Claude Code costs are estimates from list prices.
+The page embeds session titles, paths and tool names: it takes no `--include-thinking`
+and holds no prompt text, but review it before sharing.
 
 ## Live mode and the herdr plugin
 
