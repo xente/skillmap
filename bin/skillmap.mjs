@@ -178,6 +178,7 @@ async function main() {
 async function globalReport(args) {
   if (args._.length) throw new Error('--global covers every project: it takes no project folder');
   const t0 = Date.now();
+  if (!args.out) enableCache(); // served: later reloads only re-read the session files that changed
   const { traces, mcpServers, sources, notes } = await loadAllTraces(process.cwd(), { ...args, all: true });
   if (!traces.length) throw new Error(notes.length ? notes.join('; ') : `no ${runtimeLabel(RUNTIMES[args.runtime])} sessions in the last ${args.since}`);
   const payload = buildGlobalPayload(traces, { since: args.since, sources, notes });
@@ -200,7 +201,8 @@ async function globalReport(args) {
     if (args.open) openBrowser(out);
     return;
   }
-  const server = await serveGlobal({ port: args.port, strict: args.portSet, payload, traces, mcpServers, sources, since: args.since });
+  const reload = () => loadAllTraces(process.cwd(), { ...args, all: true });
+  const server = await serveGlobal({ port: args.port, strict: args.portSet, payload, traces, mcpServers, sources, since: args.since, reload });
   head();
   line(`  ✔ ${server.url}  (localhost only · Ctrl+C to stop)`);
   line(`  ⏱  ${Date.now() - t0} ms`);

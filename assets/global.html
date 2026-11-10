@@ -311,8 +311,9 @@ const hash = (str) => { let h = 0; for (const c of str) h = (h * 31 + c.charCode
 const avatar = (dir) => { const label = projectOf({ directory: dir }); const base = label.split('/').pop() || '?'; return `<span class="avatar" style="background:${css(PALETTE[hash(dir || '') % PALETTE.length])}" aria-hidden="true">${esc(base[0].toUpperCase())}</span>`; };
 const spark = (vals, tall) => { const h = tall ? 30 : 22, max = Math.max(...vals, 1); return `<span class="spark${tall ? ' tall' : ''}" aria-hidden="true">${vals.map((v) => `<i style="height:${v ? Math.max(3, Math.round((v / max) * h)) : 2}px"></i>`).join('')}</span>`; };
 const RESULT = { completed: ['COMPLETED', 'ok', 'check'], error: ['ERROR', 'bad', 'x'], aborted: ['ABORTED', 'warn', 'warn'], empty: ['EMPTY', 'mute', 'dot'] };
-const resultOf = (t) => (t.outcome === 'incomplete' ? (Date.now() - t.end < 300000 ? ['RUNNING', 'run', 'run'] : ['INCOMPLETE', 'mute', 'dot']) : RESULT[t.outcome] || [String(t.outcome).toUpperCase(), 'mute', 'dot']);
+const resultOf = (t) => (t.outcome === 'incomplete' ? (isRunning(t) ? ['RUNNING', 'run', 'run'] : ['INCOMPLETE', 'mute', 'dot']) : RESULT[t.outcome] || [String(t.outcome).toUpperCase(), 'mute', 'dot']);
 
+const isRunning = (t) => t.outcome === 'incomplete' && Date.now() - t.end < 300000;
 const RUNTIME = { opencode: 'OpenCode', 'claude-code': 'Claude Code' };
 const CLIENT = { cli: 'Terminal', 'claude-vscode': 'VS Code', 'claude-desktop': 'Desktop', 'sdk-ts': 'SDK', 'sdk-py': 'SDK', 'sdk-cli': 'SDK', 'mcp': 'MCP', 'local-agent': 'Desktop agent' };
 const clientOf = (r) => r.runtime === 'opencode' ? 'OpenCode' : (r.client ? (CLIENT[r.client] || r.client) : 'Claude Code');
@@ -352,7 +353,7 @@ function periodRows() {
   return DATA.rows.filter((r) => r.start >= from);
 }
 // a subagent session follows its parent's client and project filters
-const sessionIndex = new Map(DATA.rows.map((r) => [r.id, r]));
+let sessionIndex = new Map(DATA.rows.map((r) => [r.id, r]));
 const rootOf = (r) => { while (r.parent && sessionIndex.has(r.parent)) r = sessionIndex.get(r.parent); return r; };
 const haystack = (r) => [r.title, r.model, r.agent, r.directory].join(' ').toLowerCase();
 function visibleRows() {
@@ -391,7 +392,8 @@ function render() {
 
   const main = $('#main');
   const top = rows.filter((r) => !r.parent);
-  $('#count').textContent = `${top.length} session${top.length === 1 ? '' : 's'}`;
+  const live = top.filter(isRunning).length;
+  $('#count').textContent = `${top.length} session${top.length === 1 ? '' : 's'}${live ? ` · ${live} running` : ''}`;
   const counts = { sessions: top.length, projects: new Set(top.map((r) => r.directory)).size };
   $('#nav').innerHTML = VIEWS.map(([k, label]) => `<a href="#${k}" ${st.view === k ? 'aria-current="page"' : ''}>${label}${counts[k] != null ? `<span class="n">${counts[k]}</span>` : ''}</a>`).join('');
   if (!rows.length) { main.innerHTML = '<div class="empty">No sessions match.</div>'; return; }
@@ -499,7 +501,8 @@ function drawHistory(rows, top, est) {
     if (a) { a.subs++; a.tokens += tokAll(r.tokens); a.cost += r.cost; a.ms += r.activeMs; }
   }
   const sorters = { start: (a, b) => b.start - a.start, tokens: (a, b) => agg.get(b.id).tokens - agg.get(a.id).tokens, cost: (a, b) => agg.get(b.id).cost - agg.get(a.id).cost, ms: (a, b) => agg.get(b.id).ms - agg.get(a.id).ms };
-  const list = [...top].sort(sorters[st.sort]);
+  // sessions working right now come first, whatever the sort: they started long ago and would sit pages away
+  const list = [...top].sort((a, b) => isRunning(b) - isRunning(a) || sorters[st.sort](a, b));
   const pages = Math.max(1, Math.ceil(list.length / PAGE));
   st.page = Math.min(st.page, pages - 1);
   const th = (key, label, cls = '') => `<th class="${cls}" aria-sort="${st.sort === key ? 'descending' : 'none'}"><button type="button" data-sort="${key}">${label}${st.sort === key ? ' ↓' : ''}</button></th>`;
@@ -759,6 +762,26 @@ $('#dlg').addEventListener('click', (e) => { if (e.target === e.currentTarget) e
 $('#flow').addEventListener('click', (e) => { if (e.target === e.currentTarget) e.currentTarget.close(); });
 
 addEventListener('hashchange', () => { st.view = viewFromHash(); render(); $('#main').focus({ preventScroll: true }); window.scrollTo(0, 0); });
+
+// served page: pick up new and running sessions while it stays open
+if (DATA.live) {
+  const POLL_MS = 5000;
+  const poll = async () => {
+    if (document.hidden) return;
+    try {
+      const res = await fetch('data', { cache: 'no-store' });
+      if (!res.ok) return;
+      const next = await res.json();
+      // keep the side panel and the page's position: only redraw when something moved
+      if (JSON.stringify(next.rows.map((r) => [r.id, r.end, r.outcome])) === JSON.stringify(DATA.rows.map((r) => [r.id, r.end, r.outcome]))) return;
+      Object.assign(DATA, next, { live: true });
+      sessionIndex = new Map(DATA.rows.map((r) => [r.id, r]));
+      render();
+    } catch { /* server gone or offline: try again next tick */ }
+  };
+  setInterval(poll, POLL_MS);
+  document.addEventListener('visibilitychange', poll);
+}
 
 let resizeTimer;
 addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 120); });
