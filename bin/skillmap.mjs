@@ -24,7 +24,7 @@ import { RUNTIMES, runtimeLabel, loadAllTraces } from '../lib/runtime/load.mjs';
 import { watchSessions } from '../lib/runtime/watch.mjs';
 import { enableCache } from '../lib/runtime/claude.mjs';
 import { live } from '../lib/live.mjs';
-import { buildGlobalPayload, writeGlobalReport } from '../lib/global.mjs';
+import { buildGlobalPayload, writeGlobalReport, serveGlobal } from '../lib/global.mjs';
 import { homedir } from 'node:os';
 
 const REPORT_DIR = '.skillmap';
@@ -46,9 +46,11 @@ Options:
                      live as sessions change (instead of writing a file)
       --port <n>     Port for --watch (default 4317; if taken by another
                      project's server, the next free one is used)
-      --global       Global report across all projects instead of one folder
-                     (default output: ~/.skillmap/global.html; takes --since,
-                     --runtime, --db, --claude-dir, -o and --open)
+      --global       Global report across all projects instead of one folder.
+                     Served on localhost (--port, --open); opening a session
+                     loads its project's report with the session's flow. With
+                     -o it writes a static page instead, without that. Takes --since,
+                     --runtime, --db and --claude-dir
       --no-trace     Skip the Runtime tab (OpenCode / Claude Code session traces)
       --include-thinking
                      Embed the model's reasoning text in the report (large; may
@@ -176,21 +178,36 @@ async function main() {
 async function globalReport(args) {
   if (args._.length) throw new Error('--global covers every project: it takes no project folder');
   const t0 = Date.now();
-  const { traces, sources, notes } = await loadAllTraces(process.cwd(), { ...args, all: true });
+  const { traces, mcpServers, sources, notes } = await loadAllTraces(process.cwd(), { ...args, all: true });
   if (!traces.length) throw new Error(notes.length ? notes.join('; ') : `no ${runtimeLabel(RUNTIMES[args.runtime])} sessions in the last ${args.since}`);
   const payload = buildGlobalPayload(traces, { since: args.since, sources, notes });
-  const out = writeGlobalReport(args.out ? resolve(args.out) : join(homedir(), REPORT_DIR, 'global.html'), payload);
-  const subs = payload.rows.length - traces.length;
   const line = (s = '') => process.stdout.write(s + '\n');
-  line();
-  line(`  ◍  SkillMap global · ${runtimeLabel(sources)} · last ${args.since}`);
-  line('  ' + '─'.repeat(56));
-  line(`     ${traces.length} sessions (+ ${subs} subagent) in ${new Set(traces.map((t) => t.directory)).size} projects`);
-  for (const n of notes) line(`     ! ${n}`);
-  line();
-  line(`  ✔ Report written to ${out}`);
+  const subs = payload.rows.length - traces.length;
+  const head = () => {
+    line();
+    line(`  ◍  SkillMap global · ${runtimeLabel(sources)} · last ${args.since}`);
+    line('  ' + '─'.repeat(56));
+    line(`     ${traces.length} sessions (+ ${subs} subagent) in ${new Set(traces.map((t) => t.directory)).size} projects`);
+    for (const n of notes) line(`     ! ${n}`);
+    line();
+  };
+  // -o writes a static page (no session detail); otherwise it is served on localhost
+  if (args.out) {
+    const out = writeGlobalReport(resolve(args.out), payload);
+    head();
+    line(`  ✔ Report written to ${out}  (static: the session detail needs the served page)`);
+    line(`  ⏱  ${Date.now() - t0} ms`);
+    if (args.open) openBrowser(out);
+    return;
+  }
+  const server = await serveGlobal({ port: args.port, strict: args.portSet, payload, traces, mcpServers, sources, since: args.since });
+  head();
+  line(`  ✔ ${server.url}  (localhost only · Ctrl+C to stop)`);
   line(`  ⏱  ${Date.now() - t0} ms`);
-  if (args.open) openBrowser(out);
+  if (args.open) openBrowser(server.url);
+  const quit = () => { server.close(); process.exit(0); };
+  process.on('SIGINT', quit);
+  process.on('SIGTERM', quit);
 }
 
 function openBrowser(target) {

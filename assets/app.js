@@ -14,6 +14,13 @@
   const nameOf = (id) => (nodeById.get(id) || {}).name || id;
 
   const KIND_COLOR = { skill: '#a78bfa', agent: '#38bdf8', instructions: '#fbbf24' };
+  // theme: `?theme=` from the global page, else the data-theme attribute, else the system's
+  const qTheme = new URLSearchParams(location.search).get('theme');
+  if (qTheme === 'light' || qTheme === 'dark') document.documentElement.dataset.theme = qTheme;
+  const LIGHT = (document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')) === 'light';
+  const TH = LIGHT
+    ? { card: '#ffffff', title: '#131a2c', sub: '#5b6785', body: '#2c3550', meta: '#7280a0', label: '#ffffff', page: '#f4f6fb', sel: '#4f46e5', unused: 'rgba(220,38,38,.75)', shadow: 'rgba(20,26,43,.2)' }
+    : { card: '#131c2e', title: '#f2f6ff', sub: '#8ea2c0', body: '#c4d0e2', meta: '#7c8aa3', label: '#0b0f17', page: '#0b0f17', sel: '#818cf8', unused: 'rgba(248,113,113,.7)', shadow: 'rgba(0,0,0,.45)' };
   const EDGE_COLOR = { 'skill-ref': '#a78bfa', delegation: '#38bdf8', 'instruction-ref': '#fbbf24', 'path-ref': '#8ea2c0', uses: '#7c8aa3' };
   const KIND_LABEL = { skill: 'Skill', agent: 'Agent', instructions: 'Instructions' };
   const EDGE_LABEL = { 'skill-ref': 'skill ref', delegation: 'delegates', 'instruction-ref': 'instructs', 'path-ref': 'path ref', uses: 'uses' };
@@ -527,11 +534,11 @@
     if (n.isOrganizer) sub.push(`${n.children.length} children`);
     sub.push(`${n.inDegree} in · ${n.outDegree} out`);
     const subFont = '500 ' + F.sub + 'px -apple-system,Inter,sans-serif';
-    for (const l of fitLines(sub.join('  ·  '), innerW, subFont, 2)) lines.push({ t: l, size: F.sub, color: '#8ea2c0', font: subFont });
+    for (const l of fitLines(sub.join('  ·  '), innerW, subFont, 2)) lines.push({ t: l, size: F.sub, color: TH.sub, font: subFont });
 
     if (n.description) {
       const bodyFont = '400 ' + F.body + 'px -apple-system,Inter,sans-serif';
-      for (const l of fitLines(n.description, innerW, bodyFont, 3)) lines.push({ t: l, size: F.body, color: '#c4d0e2', font: bodyFont });
+      for (const l of fitLines(n.description, innerW, bodyFont, 3)) lines.push({ t: l, size: F.body, color: TH.body, font: bodyFont });
     }
     // model / tools / args each start on their own line and wrap inside the card
     const metaFont = '400 ' + F.meta + 'px ui-monospace,Menlo,monospace';
@@ -539,7 +546,7 @@
     if (n.model) meta.push('model: ' + n.model);
     if (n.tools && n.tools.length) meta.push('tools: ' + n.tools.slice(0, 6).join(', ') + (n.tools.length > 6 ? ` +${n.tools.length - 6}` : ''));
     if (n.argumentHint) meta.push('args: ' + n.argumentHint);
-    for (const m of meta) for (const l of fitLines(m, innerW, metaFont, 2)) lines.push({ t: l, size: F.meta, color: '#7c8aa3', font: metaFont });
+    for (const m of meta) for (const l of fitLines(m, innerW, metaFont, 2)) lines.push({ t: l, size: F.meta, color: TH.meta, font: metaFont });
 
     let flag = null, flagColor = null;
     if (UNUSED_LEAF.has(n.id)) { flag = '⚠ unused'; flagColor = '#f87171'; }
@@ -664,7 +671,7 @@
         const label = EDGE_LABEL[e.type] || e.type;
         const tw = ctx.measureText(label).width;
         ctx.globalAlpha = 0.9;
-        ctx.fillStyle = '#0b0f17';
+        ctx.fillStyle = TH.label;
         roundRect(mx - tw / 2 - 5, my - 8, tw + 10, 16, 5); ctx.fill();
         ctx.fillStyle = EDGE_COLOR[e.type] || '#7c8aa3';
         ctx.fillText(label, mx, my + 1);
@@ -681,9 +688,9 @@
       const dim = focus && !neighbors.has(id);
       ctx.globalAlpha = dim ? 0.28 : 1;
       ctx.save();
-      ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 16 * Math.min(zoom, 1.4); ctx.shadowOffsetY = 4;
+      ctx.shadowColor = TH.shadow; ctx.shadowBlur = 16 * Math.min(zoom, 1.4); ctx.shadowOffsetY = 4;
       roundRect(x, y, w, hgt, 11 * Math.min(zoom, 1.3));
-      ctx.fillStyle = '#131c2e'; ctx.fill();
+      ctx.fillStyle = TH.card; ctx.fill();
       ctx.restore();
       // header
       ctx.save();
@@ -695,7 +702,7 @@
       roundRect(x, y, w, hgt, 11 * Math.min(zoom, 1.3));
       const selected = id === state.selected || id === state.hover;
       ctx.lineWidth = selected ? 2.5 : 1.4;
-      ctx.strokeStyle = selected ? '#818cf8' : (UNUSED.has(id) ? 'rgba(248,113,113,.7)' : b.color + '99');
+      ctx.strokeStyle = selected ? TH.sel : (UNUSED.has(id) ? TH.unused : b.color + '99');
       ctx.stroke();
 
       // header text
@@ -704,7 +711,7 @@
       ctx.beginPath(); ctx.arc(x + 14 * zoom, y + (BOX.headerH / 2) * zoom, 5 * zoom, 0, Math.PI * 2);
       ctx.fillStyle = b.color; ctx.fill();
       ctx.font = `700 ${F.title * zoom}px -apple-system,Inter,sans-serif`;
-      ctx.fillStyle = '#f2f6ff';
+      ctx.fillStyle = TH.title;
       ctx.textAlign = 'right';
       ctx.font = `700 ${F.meta * zoom}px -apple-system,Inter,sans-serif`;
       const kindTxt = KIND_LABEL[n.kind].toUpperCase();
@@ -713,7 +720,7 @@
       ctx.fillText(kindTxt, x + w - 11 * zoom, y + (BOX.headerH / 2) * zoom + 1);
       ctx.textAlign = 'left';
       ctx.font = `700 ${F.title * zoom}px -apple-system,Inter,sans-serif`;
-      ctx.fillStyle = '#f2f6ff';
+      ctx.fillStyle = TH.title;
       const nameMax = w - 24 * zoom - kindW - 16 * zoom;
       let nm = n.name;
       while (ctx.measureText(nm).width > nameMax && nm.length > 3) nm = nm.slice(0, -1);
@@ -799,7 +806,7 @@
     const out = document.createElement('canvas');
     out.width = canvas.width; out.height = canvas.height;
     const octx = out.getContext('2d');
-    octx.fillStyle = '#0b0f17'; octx.fillRect(0, 0, out.width, out.height);
+    octx.fillStyle = TH.page; octx.fillRect(0, 0, out.width, out.height);
     octx.drawImage(canvas, 0, 0);
     out.toBlob((blob) => { if (blob) downloadBlob(blob, `skillmap-${safeName(META.projectLabel)}-diagram.png`); }, 'image/png');
   }
@@ -1481,7 +1488,7 @@
   setRuntime(DATA.runtime);
 
   // Live mode: served by `skillmap --watch`, which pushes the runtime on every change.
-  const LIVE = /^https?:$/.test(location.protocol) && 'EventSource' in window;
+  const LIVE = /^https?:$/.test(location.protocol) && 'EventSource' in window && DATA.meta.live !== false; // false: opened from `skillmap --global`, which has no live feed
   const LIVE_MS = 120000; // a session that wrote within this counts as live
   let liveUp = false;
   const lastActivity = (t) => Math.max(t.end, ...t.children.map(lastActivity));
@@ -2297,6 +2304,9 @@
   if (helpBtn) helpBtn.addEventListener('click', toggleHelp);
 
   /* ================= boot ================= */
+  // shown inside the global page, which has its own header; `?embed=session` is one session's page, without the project's tabs
+  if (DATA.meta.embed) document.body.classList.add('embed');
+  if (new URLSearchParams(location.search).get('embed') === 'session') document.body.classList.add('embed-session');
   renderInsights();
   renderHierarchy();
   renderRuntime();
