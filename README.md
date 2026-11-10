@@ -432,6 +432,7 @@ gitleaks dir .skillmap/skillmap.html --redact -v
 ```bash
 node bin/skillmap.mjs --global --open        # served on http://127.0.0.1:4317 (Ctrl+C to stop)
 node bin/skillmap.mjs --global --since 90d
+node bin/skillmap.mjs app                     # the same, in a window of its own
 node bin/skillmap.mjs --global -o global.html   # a static page, without the session and project reports
 ```
 

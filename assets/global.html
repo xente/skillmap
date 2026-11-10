@@ -50,6 +50,8 @@ main{padding:18px 20px 40px; max-width:1280px; margin:0 auto}
 .card{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin-bottom:16px}
 .card h2{font-size:13px; margin:0 0 10px; font-weight:650; color:var(--tx2); text-transform:uppercase; letter-spacing:.04em}
 .controls{display:flex; flex-wrap:wrap; gap:8px 18px; align-items:center; margin-bottom:10px}
+.rangein{width:74px; background:var(--panel2); color:var(--tx); border:1px solid var(--line2); border-radius:9px; padding:6px 9px; font:inherit; font-size:12.5px}
+.rangein[aria-invalid="true"]{border-color:var(--bad,#e5484d)}
 .seg{display:inline-flex; border:1px solid var(--line2); border-radius:9px; overflow:hidden}
 .seg button{background:transparent; color:var(--tx2); border:0; padding:6px 12px; font:inherit; font-size:12.5px; font-weight:600; cursor:pointer}
 .seg button+button{border-left:1px solid var(--line2)}
@@ -159,13 +161,30 @@ table.tiles th{border:0}
 .pbar .track{height:7px}
 .fullbtn{display:block; width:100%; margin-top:6px; padding:11px; background:var(--panel2); color:var(--tx); border:1px solid var(--line); border-radius:11px; font:inherit; font-weight:600; cursor:pointer}
 .fullbtn:hover{border-color:var(--line2)}
-html:has(dialog#flow[open]){overflow:hidden} /* the page behind the panel must not scroll */
-dialog#flow{overflow:hidden; position:fixed; inset:0 0 0 auto; width:min(1120px,74vw); height:100%; max-width:none; max-height:none; margin:0; border:0; border-left:1px solid var(--line2); border-radius:0; box-shadow:-18px 0 50px rgba(0,0,0,.45); animation:drawer .18s ease-out}
-dialog#flow::backdrop{background:rgba(5,8,14,.5)}
-dialog#flow[open]{display:flex; flex-direction:column}
+html:has(dialog#flow[open]),html:has(dialog#item[open]){overflow:hidden} /* the page behind the panel must not scroll */
+dialog#flow,dialog#item{overflow:hidden; position:fixed; inset:0 0 0 auto; width:min(1120px,74vw); height:100%; max-width:none; max-height:none; margin:0; border:0; border-left:1px solid var(--line2); border-radius:0; box-shadow:-18px 0 50px rgba(0,0,0,.45); animation:drawer .18s ease-out}
+dialog#flow::backdrop,dialog#item::backdrop{background:rgba(5,8,14,.5)}
+dialog#flow[open],dialog#item[open]{display:flex; flex-direction:column}
+dialog#item{width:min(620px,94vw)}
 @keyframes drawer{from{transform:translateX(28px); opacity:0}to{transform:none; opacity:1}}
-@media (prefers-reduced-motion:reduce){dialog#flow{animation:none}}
-@media (max-width:860px){dialog#flow{width:100%}}
+@media (prefers-reduced-motion:reduce){dialog#flow,dialog#item{animation:none}}
+@media (max-width:860px){dialog#flow,dialog#item{width:100%}}
+.itembody{flex:1; min-height:0; overflow:auto; padding:18px 20px 28px}
+.itembody h3{margin:22px 0 8px; font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--tx2)}
+.itembody .head{display:flex; gap:12px; align-items:flex-start}
+.itembody .desc{color:var(--tx2); margin:10px 0 0; line-height:1.5}
+.itembody .tiles2{display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:10px; margin-top:16px}
+.itembody .tile2{background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:10px 12px}
+.itembody .tile2 b{display:block; font-size:20px; letter-spacing:-.01em}
+.itembody .tile2 span{font-size:11.5px; color:var(--tx2)}
+.itembody table{width:100%; border-collapse:collapse; font-size:13px}
+.itembody td{padding:6px 4px; border-top:1px solid var(--line); vertical-align:middle}
+.itembody tr[data-sid]{cursor:pointer}
+.itembody tr[data-sid]:hover td{background:var(--panel2)}
+.itembody .bar2{display:block; height:6px; border-radius:3px; background:var(--accent); opacity:.8}
+.itembody pre.md{white-space:pre-wrap; word-break:break-word; background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:12px 14px; max-height:46vh; overflow:auto; font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace; margin:6px 0 0}
+.itembody .path{font:12px ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--tx2); word-break:break-all}
+
 tr.sel td{background:rgba(99,102,241,.14)}
 tr[data-dir]{cursor:pointer}
 tr[data-dir]:focus-visible{outline:2px solid var(--accent); outline-offset:-2px}
@@ -246,6 +265,7 @@ nav#nav .n{font-size:11px; font-weight:700; color:var(--tx3); background:var(--b
     <button type="button" class="close" id="themeBtn" aria-label="Switch between light and dark theme" title="Switch theme" style="padding:6px 10px"></button>
     <span class="lbl">Period</span>
     <div class="seg" id="range" role="group" aria-label="Period"></div>
+    <input id="rangeCustom" class="rangein" type="text" inputmode="text" autocomplete="off" spellcheck="false" placeholder="e.g. 3h" aria-label="Custom period: a number and m, h or d" title="Custom period: 45m, 3h, 2d…  Enter to apply">
   </div>
 </header>
 <div id="filters">
@@ -263,6 +283,10 @@ nav#nav .n{font-size:11px; font-weight:700; color:var(--tx3); background:var(--b
 <dialog id="flow" aria-label="Session" tabindex="-1">
   <div class="flowbar"><b id="flowTitle"></b><button class="close" type="button" id="flowReload">Reload</button><a id="flowOpen" target="_blank" rel="noopener">Open in a tab ↗</a><button class="close" type="button" id="flowBack" aria-label="Close the session">✕</button></div>
   <div class="flowbody"><div class="loading" id="flowLoad"></div><iframe id="flowFrame" title="Session detail" src="about:blank"></iframe></div>
+</dialog>
+<dialog id="item" aria-label="Detail" tabindex="-1">
+  <div class="flowbar"><b id="itemTitle"></b><button class="close" type="button" id="itemClose" aria-label="Close the detail">✕</button></div>
+  <div class="itembody" id="itemBody"></div>
 </dialog>
 <script>
 const DATA = __DATA__;
@@ -335,11 +359,15 @@ const GROUPS = {
   model: { label: 'Model', key: (r) => r.model || '(unknown)' },
   agent: { label: 'Agent', key: (r) => r.agent || (r.parent ? 'subagent' : 'main') },
 };
-const RANGES = [['7d', 7], ['30d', 30], ['all', 0]];
+const MIN = 60000, HOUR = 3600000;
+const RANGES = ['30m', '1h', '6h', '24h', '7d', '30d', 'all'];
+const RANGE_RE = /^(\d+)\s*([mhd])$/i;
+const validRange = (k) => k === 'all' || (RANGE_RE.test(k) && Number(RANGE_RE.exec(k)[1]) > 0);
+const rangeLabel = (k) => (k === 'all' ? 'All loaded' : 'Last ' + k);
 
 const VIEWS = [['overview', 'Overview'], ['sessions', 'Sessions'], ['projects', 'Projects'], ['usage', 'Skills & MCP']];
 const viewFromHash = () => { const v = location.hash.slice(1); return VIEWS.some(([k]) => k === v) ? v : 'overview'; };
-const st = { view: viewFromHash(), metric: 'cost', group: 'project', range: '30d', client: '', project: '', q: '', sort: 'start', psort: 'last', plimit: 25, page: 0, usage: 'skills', usageLimit: 25 };
+const st = { view: viewFromHash(), metric: 'cost', group: 'project', range: (() => { try { const k = new URLSearchParams(location.search).get('range') || localStorage.getItem('skillmap-range'); if (k && validRange(k)) return k; } catch { /* not remembered */ } return '30d'; })(), client: '', project: '', q: '', sort: 'start', psort: 'last', plimit: 25, page: 0, usage: 'skills', usageLimit: 25 };
 const dayStart = (t) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
 // a calendar day later: days are 23 or 25 hours long when the clocks change
 const addDays = (t, n) => { const d = new Date(t); d.setDate(d.getDate() + n); return d.getTime(); };
@@ -347,10 +375,29 @@ const addDays = (t, n) => { const d = new Date(t); d.setDate(d.getDate() + n); r
 const niceStep = (x) => { const p = 10 ** Math.floor(Math.log10(x)); const f = x / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p; };
 const dayLabel = (t) => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
+// minutes and hours are a rolling window ending now; days are calendar days, today included
+function rangeFrom() {
+  const m = RANGE_RE.exec(st.range);
+  if (!m) return 0;
+  const n = Number(m[1]), unit = m[2].toLowerCase();
+  return unit === 'd' ? addDays(dayStart(Date.now()), -(n - 1)) : Date.now() - n * (unit === 'h' ? HOUR : MIN);
+}
+// chart buckets: a short window is cut finer than a day
+const DAY_GRAIN = { unit: 'day', floor: dayStart, next: (t) => addDays(t, 1), label: dayLabel, full: dayLabel };
+const timeOf = (t) => new Date(t).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const dayTime = (t) => `${dayLabel(t)} ${timeOf(t)}`;
+const HOUR_GRAIN = { unit: 'hour', floor: (t) => { const d = new Date(t); d.setMinutes(0, 0, 0); return d.getTime(); }, next: (t) => t + HOUR, label: timeOf, full: dayTime };
+const FIVE_GRAIN = { unit: '5 min', floor: (t) => Math.floor(t / (5 * MIN)) * 5 * MIN, next: (t) => t + 5 * MIN, label: timeOf, full: dayTime };
+function grainOf() {
+  const m = RANGE_RE.exec(st.range);
+  if (!m || m[2].toLowerCase() === 'd') return DAY_GRAIN;
+  const ms = Number(m[1]) * (m[2].toLowerCase() === 'h' ? HOUR : MIN);
+  return ms <= 3 * HOUR ? FIVE_GRAIN : ms <= 48 * HOUR ? HOUR_GRAIN : DAY_GRAIN;
+}
 function periodRows() {
-  const days = RANGES.find(([k]) => k === st.range)[1];
-  const from = days ? addDays(dayStart(Date.now()), -(days - 1)) : 0;
-  return DATA.rows.filter((r) => r.start >= from);
+  const from = rangeFrom();
+  // a session that began earlier but is working now still belongs in a short period
+  return DATA.rows.filter((r) => r.start >= from || isRunning(r));
 }
 // a subagent session follows its parent's client and project filters
 let sessionIndex = new Map(DATA.rows.map((r) => [r.id, r]));
@@ -375,11 +422,21 @@ function renderFilters() {
   for (const r of rows) dirs.set(r.directory, projectOf(r));
   fillSelect($('#fProject'), 'project', [...dirs].sort((a, b) => a[1].localeCompare(b[1])), 'All projects');
 }
+$('#rangeCustom').onchange = (e) => {
+  const k = e.target.value.trim().toLowerCase().replace(/\s+/g, '');
+  if (!k) return render();
+  const ok = validRange(k);
+  e.target.setAttribute('aria-invalid', String(!ok));
+  if (!ok) return;
+  st.range = k; st.page = 0;
+  try { localStorage.setItem('skillmap-range', k); } catch { /* not remembered */ }
+  render();
+};
 $('#fSearch').oninput = (e) => { st.q = e.target.value; st.page = 0; render(); };
 
 function seg(el, options, key) {
   el.innerHTML = options.map(([k, label]) => `<button type="button" data-k="${k}" aria-pressed="${st[key] === k}">${esc(label)}</button>`).join('');
-  el.onclick = (e) => { const b = e.target.closest('button'); if (b) { st[key] = b.dataset.k; if (key === 'usage') st.usageLimit = 25; st.page = 0; render(); } };
+  el.onclick = (e) => { const b = e.target.closest('button'); if (b) { st[key] = b.dataset.k; if (key === 'range') { try { localStorage.setItem('skillmap-range', st.range); } catch { /* not remembered */ } } if (key === 'usage') st.usageLimit = 25; st.page = 0; render(); } };
 }
 
 function render() {
@@ -387,7 +444,8 @@ function render() {
   const M = METRICS[st.metric], G = GROUPS[st.group];
   $('#sub').textContent = `${[...new Set(DATA.rows.map((r) => RUNTIME[r.runtime]))].join(' + ') || 'no sessions'} · sessions of the last ${DATA.since} · generated ${new Date(DATA.generatedAt).toLocaleString()}`;
   paintThemeBtn();
-  seg($('#range'), RANGES.map(([k]) => [k, k === 'all' ? 'All loaded' : 'Last ' + k]), 'range');
+  seg($('#range'), (RANGES.includes(st.range) ? RANGES : [...RANGES.slice(0, -1), st.range, 'all']).map((k) => [k, rangeLabel(k)]), 'range');
+  $('#rangeCustom').value = RANGES.includes(st.range) ? '' : st.range;
   renderFilters();
 
   const main = $('#main');
@@ -410,30 +468,32 @@ function render() {
   const color = (k) => { const i = shown.indexOf(k); return i < 0 ? css('--other') : css(PALETTE[i]); };
   const bucket = (r) => { const k = G.key(r); return shown.includes(k) ? k : 'Other'; };
 
-  // per-day stacks
+  // per-bucket stacks: a day each, or finer for a short period
+  const grain = grainOf();
   const byDay = new Map();
   for (const r of rows) {
-    const d = dayStart(r.start);
+    const d = grain.floor(Math.max(r.start, rangeFrom()));
     const m = byDay.get(d) || new Map();
     const b = bucket(r);
     m.set(b, (m.get(b) || 0) + M.val(r));
     byDay.set(d, m);
   }
-  const first = Math.min(...byDay.keys()), last = dayStart(Date.now());
+  const first = grain === DAY_GRAIN ? Math.min(...byDay.keys()) : grain.floor(rangeFrom()), last = grain.floor(Date.now());
   const days = [];
-  for (let d = first; d <= last; d = addDays(d, 1)) days.push(d);
+  for (let d = first; d <= last; d = grain.next(d)) days.push(d);
   const order = [...shown, 'Other'];
   const dayTotal = (d) => [...(byDay.get(d)?.values() || [])].reduce((a, b) => a + b, 0);
   const max = niceStep(Math.max(...days.map(dayTotal), 1e-9) / 4) * 4;
 
   const perDay = (top.length / Math.max(1, days.length)).toFixed(1);
+  const per = grain.unit;
   const bySessions = new Map();
   for (const r of top) bySessions.set(projectOf(r), (bySessions.get(projectOf(r)) || 0) + 1);
   const busiest = [...bySessions].sort((a, b) => b[1] - a[1])[0]?.[0] || '';
   const overview = `
     <div class="pagehead"><h2>Overview <span>Cost and tokens</span></h2><p>Across every project in the selection.</p></div>
     <div class="kpis2">
-      <div class="kpi2"><div class="top">Sessions ${ICONS.pulse.replace('<svg','<svg style="color:var(--k-sessions)"')}</div><div class="val" style="color:var(--k-sessions)">${top.length}</div><div class="sub">${perDay} per day${rows.length > top.length ? ` · +${rows.length - top.length} subagent` : ''}</div></div>
+      <div class="kpi2"><div class="top">Sessions ${ICONS.pulse.replace('<svg','<svg style="color:var(--k-sessions)"')}</div><div class="val" style="color:var(--k-sessions)">${top.length}</div><div class="sub">${perDay} per ${per}${rows.length > top.length ? ` · +${rows.length - top.length} subagent` : ''}</div></div>
       <div class="kpi2"><div class="top">Total tokens ${ICONS.layers.replace('<svg','<svg style="color:var(--k-tokens)"')}</div><div class="val" style="color:var(--k-tokens)">${fmtTok(tokSum)}</div><div class="sub">Cache reads ${fmtTok(total.cacheRead)}</div></div>
       <div class="kpi2"><div class="top">Total cost ${ICONS.dollar.replace('<svg','<svg style="color:var(--k-cost)"')}</div><div class="val" style="color:var(--k-cost)">${est ? '≈' : ''}${fmtCost(total.cost)}</div><div class="sub">${est ? (rows.some((r) => !r.costEstimated && r.cost) ? 'Estimated + reported' : 'Estimated from list prices') : 'Reported by the runtime'}</div></div>
       <div class="kpi2"><div class="top">Agent active time ${ICONS.clock.replace('<svg','<svg style="color:var(--k-time)"')}</div><div class="val" style="color:var(--k-time)">${fmtMs(total.ms)}</div><div class="sub">avg ${fmtMs(total.ms / Math.max(1, top.length))} per session</div></div>
@@ -441,12 +501,12 @@ function render() {
     </div>
 
     <section class="card">
-      <h2>${esc(M.label)} per day, by ${esc(G.label.toLowerCase())}</h2>
+      <h2>${esc(M.label)} per ${per}, by ${esc(G.label.toLowerCase())}</h2>
       <div class="controls">
         <span class="lbl">Show</span><div class="seg" id="metric" role="group" aria-label="Metric"></div>
         <span class="lbl">Split by</span><div class="seg" id="group" role="group" aria-label="Split by"></div>
       </div>
-      <svg id="chart" role="img" aria-label="${esc(M.label)} per day"></svg>
+      <svg id="chart" role="img" aria-label="${esc(M.label)} per ${per}"></svg>
       <div class="legend">${order.filter((k) => k !== 'Other' || ranked.length > shown.length).map((k) => `<span><i style="background:${k === 'Other' ? css('--other') : color(k)}"></i>${esc(k)}</span>`).join('')}</div>
       <p class="note">A session counts on the day it started. Subagent sessions are included.</p>
     </section>
@@ -487,7 +547,7 @@ function render() {
     main.innerHTML = overview;
     seg($('#metric'), Object.entries(METRICS).map(([k, m]) => [k, m.label]), 'metric');
     seg($('#group'), Object.entries(GROUPS).map(([k, g]) => [k, g.label]), 'group');
-    drawChart(days, byDay, order, color, max, M);
+    drawChart(days, byDay, order, color, max, M, grain);
   }
 }
 
@@ -550,6 +610,7 @@ const USAGE = {
   agents: { label: 'Subagent types', unit: 'Runs', pick: (u) => u.agents || {} },
   mcp: { label: 'MCP servers', unit: 'Calls', pick: (u) => u.mcp || {}, errors: true },
 };
+let usageEntries = new Map();
 function drawUsage(rows) {
   const U = USAGE[st.usage];
   const startDay = Math.min(...rows.map((r) => dayStart(r.start)));
@@ -560,19 +621,26 @@ function drawUsage(rows) {
   for (const r of rows) {
     const root = rootOf(r);
     for (const [name, v] of Object.entries(U.pick(r.usage || {}))) {
-      const e = m.get(name) || { calls: 0, errors: 0, sessions: new Set(), projects: new Set(), tools: {}, last: 0, perDay: new Array(nDays).fill(0), sessDay: new Array(nDays).fill(0) };
+      const e = m.get(name) || { calls: 0, errors: 0, sessions: new Set(), projects: new Set(), tools: {}, last: 0, perDay: new Array(nDays).fill(0), sessDay: new Array(nDays).fill(0), bySess: new Map(), byProj: new Map() };
       const c = v.calls ?? v;
       e.calls += c;
       e.errors += v.errors || 0;
       e.sessions.add(root.id);
       e.projects.add(root.directory);
       e.last = Math.max(e.last, r.start);
+      const ss = e.bySess.get(root.id) || { calls: 0, errors: 0 };
+      ss.calls += c; ss.errors += v.errors || 0;
+      e.bySess.set(root.id, ss);
+      const pp = e.byProj.get(root.directory) || { calls: 0, sessions: new Set() };
+      pp.calls += c; pp.sessions.add(root.id);
+      e.byProj.set(root.directory, pp);
       const i = dayIndex(r.start);
       if (i >= 0) { e.perDay[i] += c; e.sessDay[i] += 1; }
       for (const [t, n] of Object.entries(v.tools || {})) e.tools[t] = (e.tools[t] || 0) + n;
       m.set(name, e);
     }
   }
+  usageEntries = m;
   const list = [...m].sort((a, b) => b[1].calls - a[1].calls);
   const counts = Object.fromEntries(Object.entries(USAGE).map(([k, u]) => [k, new Set(rows.flatMap((r) => Object.keys(u.pick(r.usage || {})))).size]));
   seg($('#usageTab'), Object.entries(USAGE).map(([k, u]) => [k, `${u.label} ${counts[k]}`]), 'usage');
@@ -588,7 +656,7 @@ function drawUsage(rows) {
   };
   el.innerHTML = list.length ? `<table class="rich tiles">
       <thead><tr><th>${esc(U.label.replace(/s$/, ''))}</th><th class="num">${U.unit}</th>${U.errors ? '<th class="num">Errors</th>' : ''}<th class="num">Sessions</th><th>Projects</th><th>Last used</th></tr></thead>
-      <tbody>${list.slice(0, st.usageLimit).map(([name, e]) => `<tr>
+      <tbody>${list.slice(0, st.usageLimit).map(([name, e]) => `<tr data-name="${esc(name)}" tabindex="0" role="button" aria-label="Open ${esc(name)}">
           <td>${nameCell(name, e)}</td>
           <td class="num"><span class="cell">${e.calls}${spark(e.perDay, true)}</span></td>${U.errors ? `<td class="num">${e.errors || ''}</td>` : ''}
           <td class="num"><span class="cell">${e.sessions.size}${spark(e.sessDay, true)}</span></td>
@@ -597,8 +665,63 @@ function drawUsage(rows) {
       ${list.length > st.usageLimit ? `<button type="button" class="fullbtn" id="moreUsage">Show more (${list.length - st.usageLimit} left) ›</button>` : ''}
       <p class="note">Bars show calls and sessions per day over the last ${nDays} days. The project bar is the share of the ${allProjects} projects on screen. “Active” = used in the last 3 days.${U.errors ? '' : ''}</p>`
     : '<p class="note">None in this selection.</p>';
-  el.onclick = (e) => { if (e.target.closest('#moreUsage')) { st.usageLimit += 25; render(); } };
+  el.onclick = (e) => {
+    if (e.target.closest('#moreUsage')) { st.usageLimit += 25; render(); return; }
+    const tr = e.target.closest('tr[data-name]');
+    if (tr) openItem(tr.dataset.name);
+  };
+  el.onkeydown = (e) => {
+    const tr = e.target.closest('tr[data-name]');
+    if (tr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openItem(tr.dataset.name); }
+  };
 }
+
+// one skill, subagent type or MCP server: what it is, where it is used and by which sessions
+function openItem(name) {
+  const e = usageEntries.get(name), U = USAGE[st.usage];
+  if (!e) return;
+  const kind = st.usage, info = kind === 'skills' ? (DATA.skills || {})[name] : null;
+  const when = (t) => new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  const maxTool = Math.max(1, ...Object.values(e.tools));
+  const tools = Object.entries(e.tools).sort((a, b) => b[1] - a[1]);
+  const projs = [...e.byProj].sort((a, b) => b[1].calls - a[1].calls);
+  const sess = [...e.bySess].map(([id, v]) => [sessionIndex.get(id), v]).filter(([t]) => t).sort((a, b) => b[0].start - a[0].start);
+  const maxProj = Math.max(1, ...projs.map(([, v]) => v.calls));
+  const badges = [info ? `<span class="badge ${info.scope === 'global' ? 'vio' : 'run'} sm">${info.scope === 'global' ? 'Global' : 'Project'}</span>` : '', e.last >= Date.now() - 3 * 86400000 ? '<span class="badge ok sm">Active</span>' : ''].join(' ');
+  $('#itemTitle').textContent = name;
+  $('#itemBody').innerHTML = `
+    <div class="head"><span class="sq" style="background:${css(PALETTE[hash(name) % PALETTE.length])};width:34px;height:34px;display:grid;place-content:center;border-radius:9px;color:#fff;font-weight:700" aria-hidden="true">${esc(name[0].toUpperCase())}</span>
+      <div><div style="font-size:17px;font-weight:700">${esc(name)} ${badges}</div><div class="dim">${esc(U.label.replace(/s$/, ''))}</div></div></div>
+    ${info?.description ? `<p class="desc">${esc(info.description)}</p>` : ''}
+    <div class="tiles2">
+      <div class="tile2"><b>${e.calls}</b><span>${U.unit}</span></div>
+      ${U.errors ? `<div class="tile2"><b>${e.errors}</b><span>Errors</span></div>` : ''}
+      <div class="tile2"><b>${e.sessions.size}</b><span>Sessions</span></div>
+      <div class="tile2"><b>${e.projects.size}</b><span>Projects</span></div>
+      <div class="tile2"><b style="font-size:14px;padding:4px 0;display:block">${when(e.last)}</b><span>Last used</span></div>
+    </div>
+    <h3>${U.unit} per day</h3>${spark(e.perDay, true)}
+    ${info?.file ? `<h3>Definition</h3><div class="path">${esc(info.file)}</div><div id="itemMd"></div>` : ''}
+    ${tools.length ? `<h3>Tools called (${tools.length})</h3><table>${tools.map(([t, n]) => `<tr><td>${esc(t)}</td><td style="width:42%"><span class="bar2" style="width:${Math.max(3, (n / maxTool) * 100)}%"></span></td><td class="num" style="text-align:right">${n}</td></tr>`).join('')}</table>` : ''}
+    <h3>Projects (${projs.length})</h3>
+    <table>${projs.slice(0, 15).map(([dir, v]) => `<tr><td title="${esc(dir)}">${esc(projectOf({ directory: dir }))}</td><td style="width:34%"><span class="bar2" style="width:${Math.max(3, (v.calls / maxProj) * 100)}%"></span></td><td style="text-align:right;white-space:nowrap">${v.calls} · ${v.sessions.size} sess.</td></tr>`).join('')}</table>
+    <h3>Recent sessions (${sess.length})</h3>
+    <table>${sess.slice(0, 12).map(([t, v]) => `<tr data-sid="${esc(t.id)}" tabindex="0" role="button"><td>${esc(t.title || t.id)}<div class="dim" style="font-size:11.5px">${esc(projectOf(t))} · ${esc(clientOf(t))}</div></td><td style="white-space:nowrap;text-align:right">${v.calls}${v.errors ? ` · <span style="color:var(--b-bad)">${v.errors} err</span>` : ''}<div class="dim" style="font-size:11.5px">${when(t.start)}</div></td></tr>`).join('')}</table>`;
+  const dlg = $('#item');
+  const body = $('#itemBody');
+  body.onclick = (ev) => { const tr = ev.target.closest('tr[data-sid]'); if (tr) { dlg.close(); openSession(tr.dataset.sid); } };
+  body.onkeydown = (ev) => { const tr = ev.target.closest('tr[data-sid]'); if (tr && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); dlg.close(); openSession(tr.dataset.sid); } };
+  $('#itemClose').onclick = () => dlg.close();
+  body.scrollTop = 0;
+  dlg.showModal();
+  dlg.focus();
+  if (info?.file && DATA.live) {
+    const box = $('#itemMd');
+    box.innerHTML = '<p class="dim">Loading…</p>';
+    fetch(`skill?name=${encodeURIComponent(name)}`).then((r) => (r.ok ? r.json() : Promise.reject())).then((j) => { if ($('#itemMd') === box) box.innerHTML = `<pre class="md">${esc(j.text)}</pre>${j.truncated ? '<p class="dim">Shortened.</p>' : ''}`; }).catch(() => { box.innerHTML = ''; });
+  }
+}
+$('#item').addEventListener('click', (e) => { if (e.target === e.currentTarget) e.currentTarget.close(); });
 
 // one session: its numbers, its subagents and what it called
 function openSession(id) {
@@ -716,7 +839,7 @@ function drawProjects(rows, top) {
   el.onkeydown = (e) => { const tr = e.target.closest('tr[data-dir]'); if (tr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(tr); } };
 }
 
-function drawChart(days, byDay, order, color, max, M) {
+function drawChart(days, byDay, order, color, max, M, grain) {
   const svg = $('#chart');
   const W = Math.max(600, svg.parentElement.clientWidth - 2), H = 280;
   const L = 54, R = 8, T = 10, B = 26;
@@ -732,7 +855,7 @@ function drawChart(days, byDay, order, color, max, M) {
   const every = Math.ceil(days.length / Math.floor(iw / 56));
   days.forEach((d, i) => {
     const x = L + i * bw;
-    if (i % every === 0) out += `<text x="${x + bw / 2}" y="${H - 8}" text-anchor="middle">${dayLabel(d)}</text>`;
+    if (i % every === 0) out += `<text x="${x + bw / 2}" y="${H - 8}" text-anchor="middle">${grain.label(d)}</text>`;
     let y = T + ih;
     const parts = byDay.get(d) || new Map();
     for (const k of order) {
@@ -750,7 +873,7 @@ function drawChart(days, byDay, order, color, max, M) {
     if (!r) { tip.style.display = 'none'; return; }
     const d = Number(r.dataset.d), parts = byDay.get(d);
     const total = [...parts.values()].reduce((a, b) => a + b, 0);
-    tip.innerHTML = `<b>${dayLabel(d)} · ${M.fmt(total)}</b>` + order.filter((k) => parts.get(k)).map((k) => `<div class="r"><span><i style="display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;background:${k === 'Other' ? css('--other') : color(k)}"></i>${esc(k)}</span><span>${M.fmt(parts.get(k))}</span></div>`).join('');
+    tip.innerHTML = `<b>${grain.full(d)} · ${M.fmt(total)}</b>` + order.filter((k) => parts.get(k)).map((k) => `<div class="r"><span><i style="display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;background:${k === 'Other' ? css('--other') : color(k)}"></i>${esc(k)}</span><span>${M.fmt(parts.get(k))}</span></div>`).join('');
     tip.style.display = 'block';
     tip.style.left = Math.min(e.clientX + 14, innerWidth - 320) + 'px';
     tip.style.top = e.clientY + 14 + 'px';

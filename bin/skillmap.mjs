@@ -5,6 +5,7 @@
 //   skillmap trace [project-folder] [options]   runtime traces (OpenCode, Claude Code)
 //   skillmap live                               live status of one session (herdr pane)
 //   skillmap --global                           every project's sessions: tokens, cost, history
+//   skillmap app                                the same, in its own window
 //
 // Options:
 //   -o, --out <file>     Output HTML file (default: <project>/.skillmap/skillmap.html)
@@ -13,7 +14,7 @@
 //   -h, --help           Show help
 
 import { resolve, join, basename } from 'node:path';
-import { writeFileSync } from 'node:fs';
+import { writeFileSync, existsSync } from 'node:fs';
 import { execFile } from 'node:child_process';
 import { scan } from '../lib/scan.mjs';
 import { buildGraph, analyze } from '../lib/analyze.mjs';
@@ -37,6 +38,8 @@ Usage:
   skillmap live                   Live status of one agent session (herdr pane)
   skillmap --global [options]     Every project's sessions in one page: tokens and cost
                                   over time, by project, editor, model and agent
+  skillmap app [options]          The same, in its own window (Chrome, Edge, Brave or
+                                  Chromium); Ctrl+C stops it. Takes the --global options
 
 Options:
   -o, --out <file>   Output HTML file   (default: <project>/.skillmap/skillmap.html)
@@ -77,6 +80,7 @@ Examples:
 function parseArgs(argv) {
   const args = { _: [], open: false, all: false, since: '30d', trace: true, runtime: 'all', watch: false, port: 4317 };
   if (argv[0] === 'trace' || argv[0] === 'live') { args.command = argv[0]; argv = argv.slice(1); }
+  else if (argv[0] === 'app') { args.global = true; args.appWindow = true; argv = argv.slice(1); } // the global report in its own window
   const value = (i, flag) => {
     const v = argv[i];
     if (v === undefined || v.startsWith('-')) throw new Error(`${flag} needs a value`);
@@ -206,10 +210,29 @@ async function globalReport(args) {
   head();
   line(`  ✔ ${server.url}  (localhost only · Ctrl+C to stop)`);
   line(`  ⏱  ${Date.now() - t0} ms`);
-  if (args.open) openBrowser(server.url);
+  if (args.appWindow) openAppWindow(server.url);
+  else if (args.open) openBrowser(server.url);
   const quit = () => { server.close(); process.exit(0); };
   process.on('SIGINT', quit);
   process.on('SIGTERM', quit);
+}
+
+// A Chromium browser's app mode: the page in a window of its own, without tabs or address bar.
+// Falls back to a normal browser tab when none is installed.
+function openAppWindow(url) {
+  const flags = [`--app=${url}`, '--window-size=1440,900'];
+  const tries = process.platform === 'darwin'
+    ? ['Google Chrome', 'Microsoft Edge', 'Brave Browser', 'Chromium']
+        .filter((n) => [`/Applications/${n}.app`, join(homedir(), 'Applications', `${n}.app`)].some(existsSync))
+        .map((n) => ['open', ['-na', n, '--args', ...flags]])
+    : process.platform === 'win32'
+      ? ['chrome', 'msedge', 'brave'].map((n) => ['cmd', ['/c', 'start', '""', n, ...flags]])
+      : ['google-chrome', 'chromium', 'chromium-browser', 'microsoft-edge', 'brave-browser'].map((n) => [n, flags]);
+  const next = (i) => {
+    if (i >= tries.length) { process.stderr.write('  ! No Chrome, Edge or Brave found for a window of its own: opening a browser tab.\n'); return openBrowser(url); }
+    execFile(tries[i][0], tries[i][1], (err) => { if (err) next(i + 1); });
+  };
+  next(0);
 }
 
 function openBrowser(target) {
