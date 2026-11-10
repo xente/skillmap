@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SkillMap — Global</title>
+<style>
+:root{
+  --bg:#0b0f17; --panel:#0f1522; --panel2:#151d2e; --line:#22304a; --line2:#2c3b57;
+  --tx:#e6edf7; --tx2:#9fb0c9; --tx3:#66799a; --accent:#6366f1; --warn:#fbbf24;
+  --c0:#818cf8; --c1:#38bdf8; --c2:#34d399; --c3:#fbbf24; --c4:#f472b6; --c5:#fb923c; --c6:#a3e635; --c7:#c084fc; --other:#4b5a78;
+}
+*{box-sizing:border-box}
+body{margin:0; background:radial-gradient(1200px 600px at 80% -10%,#16203a 0%,var(--bg) 55%) fixed; color:var(--tx);
+  font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif; -webkit-font-smoothing:antialiased}
+header{display:flex; flex-wrap:wrap; align-items:center; gap:14px 22px; padding:12px 20px; border-bottom:1px solid var(--line); background:rgba(15,21,34,.8)}
+.brand{display:flex; align-items:center; gap:10px}
+.logo{font-size:22px; color:var(--accent)}
+h1{font-size:15px; margin:0; font-weight:650}
+.sub{font-size:12px; color:var(--tx3)}
+main{padding:18px 20px 40px; max-width:1280px; margin:0 auto}
+.kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:16px}
+.kpi{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 14px}
+.kpi b{display:block; font-size:22px; font-weight:650; letter-spacing:-.01em}
+.kpi span{font-size:12px; color:var(--tx2)}
+.card{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin-bottom:16px}
+.card h2{font-size:13px; margin:0 0 10px; font-weight:650; color:var(--tx2); text-transform:uppercase; letter-spacing:.04em}
+.controls{display:flex; flex-wrap:wrap; gap:8px 18px; align-items:center; margin-bottom:10px}
+.seg{display:inline-flex; border:1px solid var(--line2); border-radius:9px; overflow:hidden}
+.seg button{background:transparent; color:var(--tx2); border:0; padding:6px 12px; font:inherit; font-size:12.5px; font-weight:600; cursor:pointer}
+.seg button+button{border-left:1px solid var(--line2)}
+.seg button:hover{background:var(--panel2); color:var(--tx)}
+.seg button[aria-pressed="true"]{background:var(--panel2); color:var(--tx); box-shadow:inset 0 -2px 0 var(--accent)}
+button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+.lbl{font-size:12px; color:var(--tx3)}
+#chart{width:100%; height:auto; display:block}
+#chart text{fill:var(--tx3); font-size:11px}
+#chart .grid{stroke:var(--line); stroke-width:1}
+#chart rect.bar:hover{opacity:.8}
+.legend{display:flex; flex-wrap:wrap; gap:6px 16px; margin-top:8px; font-size:12px; color:var(--tx2)}
+.legend i{display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:6px; vertical-align:-1px}
+.grid2{display:grid; grid-template-columns:repeat(auto-fit,minmax(380px,1fr)); gap:16px}
+.rank{display:grid; grid-template-columns:minmax(80px,1.1fr) 3fr auto; gap:6px 10px; align-items:center; font-size:13px}
+.rank .name{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.rank .track{height:8px; background:var(--panel2); border-radius:99px; overflow:hidden}
+.rank .fill{height:100%; border-radius:99px}
+.rank .val{color:var(--tx2); font-variant-numeric:tabular-nums; text-align:right}
+.kinds{display:flex; height:14px; border-radius:99px; overflow:hidden; background:var(--panel2); margin:4px 0 10px}
+.note{font-size:12px; color:var(--tx3); margin-top:8px}
+.empty{padding:40px; text-align:center; color:var(--tx2)}
+#tip{position:fixed; pointer-events:none; background:#0b1020; border:1px solid var(--line2); border-radius:8px; padding:8px 10px; font-size:12px; display:none; z-index:10; max-width:300px; box-shadow:0 6px 24px rgba(0,0,0,.4)}
+#tip b{display:block; margin-bottom:2px}
+#tip .r{display:flex; justify-content:space-between; gap:14px}
+@media (max-width:600px){ main{padding:12px} .grid2{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><span class="logo" aria-hidden="true">◍</span><div><h1>SkillMap · Global</h1><div class="sub" id="sub"></div></div></div>
+  <div class="controls" style="margin:0 0 0 auto">
+    <span class="lbl">Period</span>
+    <div class="seg" id="range" role="group" aria-label="Period"></div>
+  </div>
+</header>
+<main id="main"></main>
+<div id="tip" role="tooltip"></div>
+<script>
+const DATA = __DATA__;
+const $ = (s) => document.querySelector(s);
+const PALETTE = ['--c0','--c1','--c2','--c3','--c4','--c5','--c6','--c7'];
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+const fmtTok = (n) => n >= 1e9 ? (n / 1e9).toFixed(1) + 'B' : n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? Math.round(n / 1e3) + 'k' : String(Math.round(n));
+const fmtCost = (n) => (n >= 100 ? '$' + Math.round(n) : '$' + n.toFixed(2));
+const fmtMs = (ms) => ms >= 3600000 ? (ms / 3600000).toFixed(1) + ' h' : ms >= 60000 ? Math.round(ms / 60000) + ' min' : Math.round(ms / 1000) + ' s';
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const tokAll = (t) => t.input + t.output + t.reasoning + t.cacheRead + t.cacheWrite;
+const tokLive = (t) => t.input + t.output + t.reasoning + t.cacheWrite; // everything but cache reads
+
+const RUNTIME = { opencode: 'OpenCode', 'claude-code': 'Claude Code' };
+const CLIENT = { cli: 'Terminal', 'claude-vscode': 'VS Code', 'claude-desktop': 'Desktop', 'sdk-ts': 'SDK', 'sdk-py': 'SDK', 'sdk-cli': 'SDK', 'mcp': 'MCP', 'local-agent': 'Desktop agent' };
+const clientOf = (r) => r.runtime === 'opencode' ? 'OpenCode' : (r.client ? (CLIENT[r.client] || r.client) : 'Claude Code');
+const projectOf = (r) => (r.directory || '').split(/[\\/]/).filter(Boolean).slice(-2).join('/') || '(unknown)';
+
+const METRICS = {
+  cost: { label: 'Cost', val: (r) => r.cost, fmt: fmtCost },
+  tokens: { label: 'Tokens', val: (r) => tokAll(r.tokens), fmt: fmtTok },
+  fresh: { label: 'Tokens without cache reads', val: (r) => tokLive(r.tokens), fmt: fmtTok },
+};
+const GROUPS = {
+  project: { label: 'Project', key: projectOf },
+  client: { label: 'Editor / client', key: clientOf },
+  model: { label: 'Model', key: (r) => r.model || '(unknown)' },
+  agent: { label: 'Agent', key: (r) => r.agent || (r.parent ? 'subagent' : 'main') },
+};
+const RANGES = [['7d', 7], ['30d', 30], ['all', 0]];
+
+const st = { metric: 'cost', group: 'project', range: '30d' };
+const dayStart = (t) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
+// a calendar day later: days are 23 or 25 hours long when the clocks change
+const addDays = (t, n) => { const d = new Date(t); d.setDate(d.getDate() + n); return d.getTime(); };
+// a round axis step at or above `x`/4
+const niceStep = (x) => { const p = 10 ** Math.floor(Math.log10(x)); const f = x / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p; };
+const dayLabel = (t) => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+function visibleRows() {
+  const days = RANGES.find(([k]) => k === st.range)[1];
+  const from = days ? addDays(dayStart(Date.now()), -(days - 1)) : 0;
+  return DATA.rows.filter((r) => r.start >= from);
+}
+
+function seg(el, options, key) {
+  el.innerHTML = options.map(([k, label]) => `<button type="button" data-k="${k}" aria-pressed="${st[key] === k}">${esc(label)}</button>`).join('');
+  el.onclick = (e) => { const b = e.target.closest('button'); if (b) { st[key] = b.dataset.k; render(); } };
+}
+
+function render() {
+  const rows = visibleRows();
+  const M = METRICS[st.metric], G = GROUPS[st.group];
+  $('#sub').textContent = `${[...new Set(DATA.rows.map((r) => RUNTIME[r.runtime]))].join(' + ') || 'no sessions'} · sessions of the last ${DATA.since} · generated ${new Date(DATA.generatedAt).toLocaleString()}`;
+  seg($('#range'), RANGES.map(([k]) => [k, k === 'all' ? 'All loaded' : 'Last ' + k]), 'range');
+
+  const main = $('#main');
+  if (!rows.length) { main.innerHTML = '<div class="empty">No sessions in this period.</div>'; return; }
+
+  const top = rows.filter((r) => !r.parent);
+  const total = rows.reduce((a, r) => { for (const k in r.tokens) a[k] += r.tokens[k]; a.cost += r.cost; a.ms += r.activeMs; return a; }, { input: 0, output: 0, reasoning: 0, cacheRead: 0, cacheWrite: 0, cost: 0, ms: 0 });
+  const est = rows.some((r) => r.costEstimated);
+  const tokSum = tokAll(total);
+
+  // group totals, ranked
+  const sums = new Map();
+  for (const r of rows) { const k = G.key(r); sums.set(k, (sums.get(k) || 0) + M.val(r)); }
+  const ranked = [...sums].sort((a, b) => b[1] - a[1]);
+  const shown = ranked.slice(0, PALETTE.length - 1).map(([k]) => k);
+  const color = (k) => { const i = shown.indexOf(k); return i < 0 ? css('--other') : css(PALETTE[i]); };
+  const bucket = (r) => { const k = G.key(r); return shown.includes(k) ? k : 'Other'; };
+
+  // per-day stacks
+  const byDay = new Map();
+  for (const r of rows) {
+    const d = dayStart(r.start);
+    const m = byDay.get(d) || new Map();
+    const b = bucket(r);
+    m.set(b, (m.get(b) || 0) + M.val(r));
+    byDay.set(d, m);
+  }
+  const first = Math.min(...byDay.keys()), last = dayStart(Date.now());
+  const days = [];
+  for (let d = first; d <= last; d = addDays(d, 1)) days.push(d);
+  const order = [...shown, 'Other'];
+  const dayTotal = (d) => [...(byDay.get(d)?.values() || [])].reduce((a, b) => a + b, 0);
+  const max = niceStep(Math.max(...days.map(dayTotal), 1e-9) / 4) * 4;
+
+  main.innerHTML = `
+    <div class="kpis">
+      <div class="kpi"><b>${top.length}</b><span>sessions${rows.length > top.length ? ` + ${rows.length - top.length} subagent` : ''}</span></div>
+      <div class="kpi"><b>${fmtTok(tokSum)}</b><span>tokens (${fmtTok(total.cacheRead)} cache reads)</span></div>
+      <div class="kpi"><b>${est ? '≈' : ''}${fmtCost(total.cost)}</b><span>cost${est ? ' (Claude Code: estimated from list prices)' : ''}</span></div>
+      <div class="kpi"><b>${fmtMs(total.ms)}</b><span>agent active time</span></div>
+      <div class="kpi"><b>${new Set(top.map(projectOf)).size}</b><span>projects</span></div>
+    </div>
+
+    <section class="card">
+      <h2>${esc(M.label)} per day, by ${esc(G.label.toLowerCase())}</h2>
+      <div class="controls">
+        <span class="lbl">Show</span><div class="seg" id="metric" role="group" aria-label="Metric"></div>
+        <span class="lbl">Split by</span><div class="seg" id="group" role="group" aria-label="Split by"></div>
+      </div>
+      <svg id="chart" role="img" aria-label="${esc(M.label)} per day"></svg>
+      <div class="legend">${order.filter((k) => k !== 'Other' || ranked.length > shown.length).map((k) => `<span><i style="background:${k === 'Other' ? css('--other') : color(k)}"></i>${esc(k)}</span>`).join('')}</div>
+      <p class="note">A session counts on the day it started. Subagent sessions are included.</p>
+    </section>
+
+    <div class="grid2">
+      <section class="card">
+        <h2>${esc(G.label)} ranking · ${esc(M.label.toLowerCase())}</h2>
+        <div class="rank">${ranked.slice(0, 12).map(([k, v]) => `
+          <span class="name" title="${esc(k)}">${esc(k)}</span>
+          <span class="track"><span class="fill" style="display:block; width:${(v / ranked[0][1]) * 100}%; background:${color(k)}"></span></span>
+          <span class="val">${M.fmt(v)}</span>`).join('')}</div>
+        ${ranked.length > 12 ? `<p class="note">${ranked.length - 12} more not shown.</p>` : ''}
+      </section>
+      <section class="card">
+        <h2>Tokens by kind</h2>
+        <div class="kinds" role="img" aria-label="Tokens by kind">${[['cacheRead', '--c1'], ['cacheWrite', '--c3'], ['input', '--c0'], ['output', '--c2'], ['reasoning', '--c4']].map(([k, c]) => `<span style="width:${(total[k] / tokSum) * 100}%; background:${css(c)}" title="${k}"></span>`).join('')}</div>
+        <div class="rank">${[['cacheRead', 'Cache reads', '--c1'], ['cacheWrite', 'Cache writes', '--c3'], ['input', 'Input', '--c0'], ['output', 'Output', '--c2'], ['reasoning', 'Reasoning', '--c4']].map(([k, label, c]) => `
+          <span class="name"><i style="display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;background:${css(c)}"></i>${label}</span>
+          <span class="track"><span class="fill" style="display:block; width:${(total[k] / tokSum) * 100}%; background:${css(c)}"></span></span>
+          <span class="val">${fmtTok(total[k])}</span>`).join('')}</div>
+        <p class="note">Cache reads are usually most of the total; “Tokens without cache reads” shows the rest.</p>
+      </section>
+    </div>`;
+
+  seg($('#metric'), Object.entries(METRICS).map(([k, m]) => [k, m.label]), 'metric');
+  seg($('#group'), Object.entries(GROUPS).map(([k, g]) => [k, g.label]), 'group');
+  drawChart(days, byDay, order, color, max, M);
+}
+
+function drawChart(days, byDay, order, color, max, M) {
+  const svg = $('#chart');
+  const W = Math.max(600, svg.parentElement.clientWidth - 2), H = 280;
+  const L = 54, R = 8, T = 10, B = 26;
+  const iw = W - L - R, ih = H - T - B;
+  const bw = iw / days.length;
+  const gap = Math.min(3, bw * 0.2);
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  let out = '';
+  for (let i = 0; i <= 4; i++) {
+    const y = T + ih - (ih * i) / 4;
+    out += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y}" y2="${y}"/><text x="${L - 6}" y="${y + 4}" text-anchor="end">${M.fmt((max * i) / 4)}</text>`;
+  }
+  const every = Math.ceil(days.length / Math.floor(iw / 56));
+  days.forEach((d, i) => {
+    const x = L + i * bw;
+    if (i % every === 0) out += `<text x="${x + bw / 2}" y="${H - 8}" text-anchor="middle">${dayLabel(d)}</text>`;
+    let y = T + ih;
+    const parts = byDay.get(d) || new Map();
+    for (const k of order) {
+      const v = parts.get(k);
+      if (!v) continue;
+      const h = (v / max) * ih;
+      y -= h;
+      out += `<rect class="bar" x="${x + gap / 2}" y="${y}" width="${Math.max(1, bw - gap)}" height="${Math.max(0.5, h)}" fill="${k === 'Other' ? css('--other') : color(k)}" data-d="${d}" data-k="${esc(k)}"/>`;
+    }
+  });
+  svg.innerHTML = out;
+  svg.onmousemove = (e) => {
+    const r = e.target.closest('rect.bar');
+    const tip = $('#tip');
+    if (!r) { tip.style.display = 'none'; return; }
+    const d = Number(r.dataset.d), parts = byDay.get(d);
+    const total = [...parts.values()].reduce((a, b) => a + b, 0);
+    tip.innerHTML = `<b>${dayLabel(d)} · ${M.fmt(total)}</b>` + order.filter((k) => parts.get(k)).map((k) => `<div class="r"><span><i style="display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;background:${k === 'Other' ? css('--other') : color(k)}"></i>${esc(k)}</span><span>${M.fmt(parts.get(k))}</span></div>`).join('');
+    tip.style.display = 'block';
+    tip.style.left = Math.min(e.clientX + 14, innerWidth - 320) + 'px';
+    tip.style.top = e.clientY + 14 + 'px';
+  };
+  svg.onmouseleave = () => { $('#tip').style.display = 'none'; };
+}
+
+let resizeTimer;
+addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 120); });
+render();
+</script>
+</body>
+</html>

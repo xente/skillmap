@@ -4,6 +4,7 @@
 //   skillmap <project-folder> [options]
 //   skillmap trace [project-folder] [options]   runtime traces (OpenCode, Claude Code)
 //   skillmap live                               live status of one session (herdr pane)
+//   skillmap --global                           every project's sessions: tokens, cost, history
 //
 // Options:
 //   -o, --out <file>     Output HTML file (default: <project>/.skillmap/skillmap.html)
@@ -23,6 +24,8 @@ import { RUNTIMES, runtimeLabel, loadAllTraces } from '../lib/runtime/load.mjs';
 import { watchSessions } from '../lib/runtime/watch.mjs';
 import { enableCache } from '../lib/runtime/claude.mjs';
 import { live } from '../lib/live.mjs';
+import { buildGlobalPayload, writeGlobalReport } from '../lib/global.mjs';
+import { homedir } from 'node:os';
 
 const REPORT_DIR = '.skillmap';
 
@@ -32,6 +35,8 @@ Usage:
   skillmap <project-folder> [options]
   skillmap trace [project-folder] [options]
   skillmap live                   Live status of one agent session (herdr pane)
+  skillmap --global [options]     Every project's sessions in one page: tokens and cost
+                                  over time, by project, editor, model and agent
 
 Options:
   -o, --out <file>   Output HTML file   (default: <project>/.skillmap/skillmap.html)
@@ -41,6 +46,9 @@ Options:
                      live as sessions change (instead of writing a file)
       --port <n>     Port for --watch (default 4317; if taken by another
                      project's server, the next free one is used)
+      --global       Global report across all projects instead of one folder
+                     (default output: ~/.skillmap/global.html; takes --since,
+                     --runtime, --db, --claude-dir, -o and --open)
       --no-trace     Skip the Runtime tab (OpenCode / Claude Code session traces)
       --include-thinking
                      Embed the model's reasoning text in the report (large; may
@@ -78,6 +86,7 @@ function parseArgs(argv) {
     else if (a === '--open') args.open = true;
     else if (a === '--all') args.all = true;
     else if (a === '--watch') args.watch = true;
+    else if (a === '--global') args.global = true;
     else if (a === '--port') { args.port = Number(value(++i, a)); args.portSet = true; }
     else if (a === '--no-trace') args.trace = false;
     else if (a === '--include-thinking') args.thinking = true;
@@ -118,6 +127,7 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.command === 'trace' && !args.help) return trace(args);
   if (args.command === 'live' && !args.help) return live(args);
+  if (args.global && !args.help) return globalReport(args);
   if (args.all) throw new Error('--all only applies to `skillmap trace`');
   if (args.help || args._.length === 0) { process.stdout.write(HELP); process.exit(args.help ? 0 : 1); }
 
@@ -159,6 +169,27 @@ async function main() {
   if (args.json) line(`  ✔ Graph JSON written to ${resolve(args.json)}`);
   line(`  ⏱  ${Date.now() - t0} ms`);
 
+  if (args.open) openBrowser(out);
+}
+
+// --global: every project's sessions in one page, written to the home folder
+async function globalReport(args) {
+  if (args._.length) throw new Error('--global covers every project: it takes no project folder');
+  const t0 = Date.now();
+  const { traces, sources, notes } = await loadAllTraces(process.cwd(), { ...args, all: true });
+  if (!traces.length) throw new Error(notes.length ? notes.join('; ') : `no ${runtimeLabel(RUNTIMES[args.runtime])} sessions in the last ${args.since}`);
+  const payload = buildGlobalPayload(traces, { since: args.since, sources, notes });
+  const out = writeGlobalReport(args.out ? resolve(args.out) : join(homedir(), REPORT_DIR, 'global.html'), payload);
+  const subs = payload.rows.length - traces.length;
+  const line = (s = '') => process.stdout.write(s + '\n');
+  line();
+  line(`  ◍  SkillMap global · ${runtimeLabel(sources)} · last ${args.since}`);
+  line('  ' + '─'.repeat(56));
+  line(`     ${traces.length} sessions (+ ${subs} subagent) in ${new Set(traces.map((t) => t.directory)).size} projects`);
+  for (const n of notes) line(`     ! ${n}`);
+  line();
+  line(`  ✔ Report written to ${out}`);
+  line(`  ⏱  ${Date.now() - t0} ms`);
   if (args.open) openBrowser(out);
 }
 
