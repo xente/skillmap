@@ -30,6 +30,7 @@ node bin/skillmap.mjs <project-folder> --open
 - [How connections are derived](#how-connections-are-derived)
 - [What it surfaces (Insights)](#what-it-surfaces-insights)
 - [Runtime: what actually happened (OpenCode, Claude Code)](#runtime-what-actually-happened-opencode-claude-code)
+- [Global report: every project at once](#global-report-every-project-at-once)
 - [Live mode and the herdr plugin](#live-mode-and-the-herdr-plugin)
 - [Usage](#usage)
 - [Keyboard](#keyboard)
@@ -425,6 +426,46 @@ with [gitleaks](https://github.com/gitleaks/gitleaks):
 ```bash
 gitleaks dir .skillmap/skillmap.html --redact -v
 ```
+
+## Global report: every project at once
+
+```bash
+node bin/skillmap.mjs --global --open        # served on http://127.0.0.1:4317 (Ctrl+C to stop)
+node bin/skillmap.mjs --global --since 90d
+node bin/skillmap.mjs --global -o global.html   # a static page, without the session and project reports
+```
+
+One page for all the sessions of all your projects (Claude Code and OpenCode),
+instead of one folder. A sidebar has four sections (`#overview`, `#sessions`,
+`#projects`, `#usage`), and the period and filters at the top apply to all of
+them:
+
+- **Overview**: tokens and cost per day, split by project, editor/client, model
+  or agent, with the metric (cost, tokens, tokens without cache reads) one click
+  away. Cache reads are usually most of the tokens, which is why that last view
+  exists.
+- **Sessions**: the history, sortable, with filters by editor/client, project and
+  text. Each row adds up the session's subagents.
+- **Projects**: every folder the agents worked in, with sessions, tokens, cost,
+  how many skills and agents it defines and its last activity.
+- **Skills & MCP**: skills, subagent types and MCP servers used across the
+  sessions on screen, one list at a time: calls, errors, sessions, projects, last
+  use and, for skills, the description from their `SKILL.md`.
+
+It is served on localhost, like `--watch`. Open a session or a project and the
+server builds that project's report on the spot (it scans the folder the first
+time, with a loading state) and shows it in a side panel over the list. A
+session opens its session page: flow, skills, subagents, MCP calls and
+timeline. A project opens the full report: diagram, hierarchy, insights and
+runtime. "Open in a tab" gives the same page on its own, and
+`<page>#session=<id>` and `<page>#project=<folder>` open one directly. The static page from `-o` has
+neither, only the totals.
+
+The editor/client comes from Claude Code's `entrypoint` (terminal, VS Code…).
+OpenCode doesn't record it, so its sessions show as "OpenCode". A session counts
+on the day it started. Claude Code costs are estimates from list prices.
+The page embeds session titles, paths and tool names: it takes no `--include-thinking`
+and holds no prompt text, but review it before sharing.
 
 ## Live mode and the herdr plugin
 

@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SkillMap — Global</title>
+<script>try { const t = localStorage.getItem('skillmap-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch { /* storage blocked: follow the system */ }</script>
+<style>
+:root{
+  color-scheme:dark; scrollbar-color:var(--line2) transparent;
+  --bg:#0b0f17; --panel:#0f1522; --panel2:#151d2e; --line:#22304a; --line2:#2c3b57;
+  --tx:#e6edf7; --tx2:#9fb0c9; --tx3:#66799a; --accent:#6366f1; --warn:#fbbf24;
+  --c0:#818cf8; --c1:#38bdf8; --c2:#34d399; --c3:#fbbf24; --c4:#f472b6; --c5:#fb923c; --c6:#a3e635; --c7:#c084fc; --other:#4b5a78;
+  --glow:#16203a; --bar:rgba(15,21,34,.8); --bar-f:rgba(15,21,34,.5); --nav:rgba(15,21,34,.45); --flowbar:rgba(15,21,34,.95); --tipbg:#0b1020;
+  --wash:rgba(255,255,255,.02); --hov:#19243a; --link:#60a5fa; --spark:#5b6b8c; --cardtop:rgba(21,29,46,.55); --sqtx:#0b0f17;
+  --b-ok:#34d399; --b-bad:#f87171; --b-warn:#fbbf24; --b-run:#38bdf8; --b-vio:#c084fc;
+  --k-sessions:#34d399; --k-tokens:#38bdf8; --k-cost:#fbbf24; --k-time:#c084fc; --k-proj:#f472b6;
+}
+:root[data-theme="light"]{
+  color-scheme:light;
+  --bg:#f4f6fb; --panel:#ffffff; --panel2:#f1f3f9; --line:#dfe4ef; --line2:#cbd2e2; --tx:#131a2c; --tx2:#475270; --tx3:#7280a0; --accent:#4f46e5; --other:#aab4c8;
+  --glow:#e4e9f7; --bar:rgba(255,255,255,.85); --bar-f:rgba(255,255,255,.6); --nav:rgba(255,255,255,.6); --flowbar:rgba(255,255,255,.97); --tipbg:#ffffff;
+  --wash:rgba(20,26,43,.03); --hov:#eef1f9; --link:#2563eb; --spark:#94a3b8; --cardtop:rgba(246,248,252,.9); --sqtx:#0b0f17;
+  --b-ok:#047857; --b-bad:#dc2626; --b-warn:#b45309; --b-run:#0369a1; --b-vio:#7c3aed;
+  --k-sessions:#059669; --k-tokens:#0284c7; --k-cost:#b45309; --k-time:#7c3aed; --k-proj:#db2777;
+}
+@media (prefers-color-scheme:light){
+  :root:not([data-theme="dark"]){
+  color-scheme:light;
+  --bg:#f4f6fb; --panel:#ffffff; --panel2:#f1f3f9; --line:#dfe4ef; --line2:#cbd2e2; --tx:#131a2c; --tx2:#475270; --tx3:#7280a0; --accent:#4f46e5; --other:#aab4c8;
+  --glow:#e4e9f7; --bar:rgba(255,255,255,.85); --bar-f:rgba(255,255,255,.6); --nav:rgba(255,255,255,.6); --flowbar:rgba(255,255,255,.97); --tipbg:#ffffff;
+  --wash:rgba(20,26,43,.03); --hov:#eef1f9; --link:#2563eb; --spark:#94a3b8; --cardtop:rgba(246,248,252,.9); --sqtx:#0b0f17;
+  --b-ok:#047857; --b-bad:#dc2626; --b-warn:#b45309; --b-run:#0369a1; --b-vio:#7c3aed;
+  --k-sessions:#059669; --k-tokens:#0284c7; --k-cost:#b45309; --k-time:#7c3aed; --k-proj:#db2777;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0; background:radial-gradient(1200px 600px at 80% -10%,var(--glow) 0%,var(--bg) 55%) fixed; color:var(--tx);
+  font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif; -webkit-font-smoothing:antialiased}
+header{display:flex; flex-wrap:wrap; align-items:center; gap:14px 22px; padding:12px 32px; border-bottom:1px solid var(--line); background:var(--bar)}
+.brand{display:flex; align-items:center; gap:10px}
+.logo{font-size:22px; color:var(--accent)}
+h1{font-size:15px; margin:0; font-weight:650}
+.sub{font-size:12px; color:var(--tx3)}
+main{padding:18px 20px 40px; max-width:1280px; margin:0 auto}
+.kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:16px}
+.kpi{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 14px}
+.kpi b{display:block; font-size:22px; font-weight:650; letter-spacing:-.01em}
+.kpi span{font-size:12px; color:var(--tx2)}
+.card{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin-bottom:16px}
+.card h2{font-size:13px; margin:0 0 10px; font-weight:650; color:var(--tx2); text-transform:uppercase; letter-spacing:.04em}
+.controls{display:flex; flex-wrap:wrap; gap:8px 18px; align-items:center; margin-bottom:10px}
+.seg{display:inline-flex; border:1px solid var(--line2); border-radius:9px; overflow:hidden}
+.seg button{background:transparent; color:var(--tx2); border:0; padding:6px 12px; font:inherit; font-size:12.5px; font-weight:600; cursor:pointer}
+.seg button+button{border-left:1px solid var(--line2)}
+.seg button:hover{background:var(--panel2); color:var(--tx)}
+.seg button[aria-pressed="true"]{background:var(--panel2); color:var(--tx); box-shadow:inset 0 -2px 0 var(--accent)}
+button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+.lbl{font-size:12px; color:var(--tx3)}
+#chart{width:100%; height:auto; display:block}
+#chart text{fill:var(--tx3); font-size:11px}
+#chart .grid{stroke:var(--line); stroke-width:1}
+#chart rect.bar:hover{opacity:.8}
+.legend{display:flex; flex-wrap:wrap; gap:6px 16px; margin-top:8px; font-size:12px; color:var(--tx2)}
+.legend i{display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:6px; vertical-align:-1px}
+.grid2{display:grid; grid-template-columns:repeat(auto-fit,minmax(380px,1fr)); gap:16px}
+.rank{display:grid; grid-template-columns:minmax(80px,1.1fr) 3fr auto; gap:6px 10px; align-items:center; font-size:13px}
+.rank .name{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.rank .track{height:8px; background:var(--panel2); border-radius:99px; overflow:hidden}
+.rank .fill{height:100%; border-radius:99px}
+.rank .val{color:var(--tx2); font-variant-numeric:tabular-nums; text-align:right}
+.kinds{display:flex; height:14px; border-radius:99px; overflow:hidden; background:var(--panel2); margin:4px 0 10px}
+.note{font-size:12px; color:var(--tx3); margin-top:8px}
+.empty{padding:40px; text-align:center; color:var(--tx2)}
+#tip{position:fixed; pointer-events:none; background:var(--tipbg); border:1px solid var(--line2); border-radius:8px; padding:8px 10px; font-size:12px; display:none; z-index:10; max-width:300px; box-shadow:0 6px 24px rgba(0,0,0,.4)}
+#tip b{display:block; margin-bottom:2px}
+#tip .r{display:flex; justify-content:space-between; gap:14px}
+#filters{display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; padding:10px 32px; border-bottom:1px solid var(--line); background:var(--bar-f)}
+#filters select,#filters input{background:var(--panel2); color:var(--tx); border:1px solid var(--line2); border-radius:9px; padding:6px 10px; font:inherit; font-size:12.5px; max-width:240px}
+#filters input{min-width:280px}
+#filters select:focus-visible,#filters input:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+#filters .count{margin-left:auto; font-size:12px; color:var(--tx3)}
+.tablewrap{overflow-x:auto}
+table{width:100%; border-collapse:collapse; font-size:13px}
+th,td{padding:7px 10px; text-align:left; border-bottom:1px solid var(--line); white-space:nowrap}
+th{font-size:11.5px; color:var(--tx3); font-weight:650; text-transform:uppercase; letter-spacing:.04em}
+th button{all:unset; cursor:pointer; color:inherit; text-transform:inherit; letter-spacing:inherit}
+th button:hover,th button:focus-visible{color:var(--tx)}
+td.num,th.num{text-align:right; font-variant-numeric:tabular-nums}
+td.title{max-width:340px; overflow:hidden; text-overflow:ellipsis; color:var(--tx)}
+td.dim{color:var(--tx2)}
+tr:hover td{background:var(--wash)}
+.tag{display:inline-block; padding:1px 8px; border-radius:99px; background:var(--panel2); border:1px solid var(--line2); font-size:11.5px; color:var(--tx2)}
+.more{margin-top:10px}
+.more button{background:var(--panel2); color:var(--tx); border:1px solid var(--line2); border-radius:9px; padding:6px 14px; font:inherit; font-size:12.5px; cursor:pointer}
+/* ---- look: icon KPI cards, badges, sparklines, project bars ---- */
+.kpis2{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px; margin-bottom:16px}
+.kpi2{background:linear-gradient(180deg,var(--panel2),var(--panel)); border:1px solid var(--line); border-radius:12px; padding:14px 16px 12px}
+.kpi2 .top{display:flex; align-items:center; justify-content:space-between; font-size:11.5px; font-weight:650; letter-spacing:.06em; text-transform:uppercase; color:var(--tx2)}
+.kpi2 .top svg{width:20px; height:20px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round}
+.kpi2 .val{font-size:32px; font-weight:700; letter-spacing:-.02em; line-height:1.15; margin:6px 0 2px}
+.kpi2 .sub{font-size:12.5px; color:var(--tx2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.badge{display:inline-flex; align-items:center; gap:5px; padding:2px 10px; border-radius:7px; font-size:11px; font-weight:700; letter-spacing:.04em; border:1px solid}
+.badge.ok{color:var(--b-ok); background:color-mix(in srgb,var(--b-ok) 11%,transparent); border-color:color-mix(in srgb,var(--b-ok) 38%,transparent)}
+.badge.bad{color:var(--b-bad); background:color-mix(in srgb,var(--b-bad) 11%,transparent); border-color:color-mix(in srgb,var(--b-bad) 38%,transparent)}
+.badge.warn{color:var(--b-warn); background:color-mix(in srgb,var(--b-warn) 11%,transparent); border-color:color-mix(in srgb,var(--b-warn) 38%,transparent)}
+.badge.run{color:var(--b-run); background:color-mix(in srgb,var(--b-run) 11%,transparent); border-color:color-mix(in srgb,var(--b-run) 38%,transparent)}
+.badge.mute{color:var(--tx2); background:var(--panel2); border-color:var(--line2)}
+.avatar{display:inline-grid; place-items:center; width:22px; height:22px; border-radius:6px; font-size:11px; font-weight:700; margin-right:8px; vertical-align:middle; color:#0b0f17}
+.proj{display:flex; align-items:center; min-width:0}
+.proj span.t{overflow:hidden; text-overflow:ellipsis}
+.spark{display:inline-flex; align-items:flex-end; gap:2px; height:22px; margin-left:10px; vertical-align:middle}
+.spark i{display:block; width:3px; min-height:2px; border-radius:1px; background:var(--tx3); opacity:.8}
+.cell{display:flex; align-items:center; justify-content:flex-end; gap:0}
+.pbar{display:flex; align-items:center; gap:10px; min-width:120px}
+.pbar b{font-weight:600; min-width:2ch; text-align:right; font-variant-numeric:tabular-nums}
+.pbar .track{flex:1; height:6px; border-radius:99px; background:var(--panel2); overflow:hidden}
+.pbar .track i{display:block; height:100%; border-radius:99px}
+.pager{display:flex; align-items:center; justify-content:center; gap:14px; margin-top:12px; font-size:13px; color:var(--tx2)}
+.pager button{background:var(--panel2); color:var(--tx); border:1px solid var(--line2); border-radius:9px; padding:5px 14px; font:inherit; font-size:12.5px; cursor:pointer}
+.pager button:disabled{opacity:.4; cursor:default}
+table.rich th{background:var(--wash); position:sticky; top:0}
+table.rich th,table.rich td{padding-left:7px; padding-right:7px}
+table.rich td{padding-top:10px; padding-bottom:10px}
+table.rich td.title{max-width:250px}
+table.rich .proj{max-width:165px}
+table.rich .spark{margin-left:7px}
+.card{background:linear-gradient(180deg,var(--cardtop),var(--panel))}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin{display:inline-block; width:16px; height:16px; border:2px solid var(--line2); border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; vertical-align:-3px; margin-right:8px}
+@media (prefers-reduced-motion:reduce){.spin{animation-duration:2.4s}}
+.loading{padding:18px 0; color:var(--tx2); font-size:13px}
+/* sessions: link-like titles, icons, footer pager inside the card */
+a.slink,.slink{color:var(--link); text-decoration:none}
+tr:hover .slink{text-decoration:underline}
+.ico{width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; vertical-align:-3px; margin-right:7px; flex:none}
+.ico.dim{color:var(--tx3)}
+.badge .ico{width:12px; height:12px; margin-right:0}
+.tablecard{padding:0; overflow:hidden}
+.tablecard .tablewrap{padding:0 6px}
+.tablecard .pager{margin:0; padding:12px; border-top:1px solid var(--line); justify-content:center}
+.tablecard .note{padding:0 16px 12px; margin:0}
+/* skills & MCP: one tile per row */
+table.tiles{border-collapse:separate; border-spacing:0 8px; margin-top:-4px}
+table.tiles td{background:var(--panel2); border:0; border-top:1px solid var(--line); border-bottom:1px solid var(--line); padding-top:12px; padding-bottom:12px}
+table.tiles td:first-child{border-left:1px solid var(--line); border-radius:11px 0 0 11px}
+table.tiles td:last-child{border-right:1px solid var(--line); border-radius:0 11px 11px 0}
+table.tiles tr:hover td{background:var(--hov); border-color:var(--line2)}
+table.tiles th{border:0}
+.skill{display:flex; align-items:center; gap:12px; min-width:0}
+.skill .sq{flex:none; display:grid; place-items:center; width:34px; height:34px; border-radius:9px; font-weight:700; font-size:14px; color:#0b0f17}
+.skill .nm{display:flex; align-items:center; flex-wrap:wrap; gap:6px 8px; font-weight:600; color:var(--tx)}
+.skill .ds{font-size:12px; color:var(--tx3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:520px; margin-top:2px}
+.skill > div{min-width:0}
+.badge.sm{padding:0 8px; font-size:10.5px}
+.badge.vio{color:var(--b-vio); background:color-mix(in srgb,var(--b-vio) 11%,transparent); border-color:color-mix(in srgb,var(--b-vio) 38%,transparent)}
+.spark.tall{height:30px; gap:2px; margin-left:12px}
+.spark.tall i{width:4px; background:var(--spark); opacity:1; border-radius:1px}
+.pbar .track{height:7px}
+.fullbtn{display:block; width:100%; margin-top:6px; padding:11px; background:var(--panel2); color:var(--tx); border:1px solid var(--line); border-radius:11px; font:inherit; font-weight:600; cursor:pointer}
+.fullbtn:hover{border-color:var(--line2)}
+html:has(dialog#flow[open]){overflow:hidden} /* the page behind the panel must not scroll */
+dialog#flow{overflow:hidden; position:fixed; inset:0 0 0 auto; width:min(1120px,74vw); height:100%; max-width:none; max-height:none; margin:0; border:0; border-left:1px solid var(--line2); border-radius:0; box-shadow:-18px 0 50px rgba(0,0,0,.45); animation:drawer .18s ease-out}
+dialog#flow::backdrop{background:rgba(5,8,14,.5)}
+dialog#flow[open]{display:flex; flex-direction:column}
+@keyframes drawer{from{transform:translateX(28px); opacity:0}to{transform:none; opacity:1}}
+@media (prefers-reduced-motion:reduce){dialog#flow{animation:none}}
+@media (max-width:860px){dialog#flow{width:100%}}
+tr.sel td{background:rgba(99,102,241,.14)}
+tr[data-dir]{cursor:pointer}
+tr[data-dir]:focus-visible{outline:2px solid var(--accent); outline-offset:-2px}
+.flowbar{display:flex; align-items:center; gap:14px; padding:10px 16px; border-bottom:1px solid var(--line); background:var(--flowbar)}
+.flowbar b{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px}
+.flowbar a{color:var(--tx2); font-size:12.5px}
+.flowbody{position:relative; flex:1; min-height:0}
+.flowbody iframe{position:absolute; inset:0; width:100%; height:100%; border:0; background:var(--bg)}
+.flowbody .loading{position:absolute; inset:0; display:grid; place-content:center; z-index:1}
+.flowbody .loading[hidden]{display:none}
+dialog{background:var(--panel); color:var(--tx); border:1px solid var(--line2); border-radius:14px; padding:0; width:min(860px,94vw); max-height:88vh; box-shadow:0 20px 70px rgba(0,0,0,.6)}
+dialog::backdrop{background:rgba(5,8,14,.7)}
+.dhead{display:flex; gap:12px; align-items:flex-start; padding:16px 20px; border-bottom:1px solid var(--line)}
+.dhead h3{margin:0; font-size:16px; flex:1; overflow-wrap:anywhere}
+.dbody{padding:16px 20px 20px; overflow:auto; max-height:calc(88vh - 70px)}
+.dbody h4{margin:16px 0 8px; font-size:12px; color:var(--tx2); text-transform:uppercase; letter-spacing:.04em}
+.dbody h4:first-child{margin-top:0}
+.close,.copy{background:var(--panel2); color:var(--tx); border:1px solid var(--line2); border-radius:9px; padding:5px 12px; font:inherit; font-size:12.5px; cursor:pointer}
+.meta{display:flex; flex-wrap:wrap; gap:6px 18px; font-size:12.5px; color:var(--tx2); margin-top:6px}
+pre.cmd{margin:0; flex:1; background:var(--bg); border:1px solid var(--line); border-radius:9px; padding:8px 12px; font-size:12.5px; overflow-x:auto}
+.cmdrow{display:flex; gap:8px; align-items:stretch}
+.chips{display:flex; flex-wrap:wrap; gap:6px}
+tr[data-id]{cursor:pointer}
+tr[data-id]:focus-visible{outline:2px solid var(--accent); outline-offset:-2px}
+.app{display:grid; grid-template-columns:230px minmax(0,1fr); align-items:stretch; min-height:calc(100vh - 110px)}
+.app main{max-width:none; margin:0; padding:22px 32px 48px}
+nav#nav{padding:20px 14px; display:flex; flex-direction:column; gap:4px; border-right:1px solid var(--line); background:var(--nav)}
+nav#nav a{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:9px 12px; border-radius:10px; color:var(--tx2); text-decoration:none; font-weight:600; font-size:13.5px; border:1px solid transparent}
+nav#nav a:hover{background:var(--panel2); color:var(--tx)}
+nav#nav a[aria-current="page"]{background:var(--panel2); color:var(--tx); border-color:var(--line2); box-shadow:inset 3px 0 0 var(--accent)}
+nav#nav a:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+nav#nav .n{font-size:11px; font-weight:700; color:var(--tx3); background:var(--bg); border-radius:99px; padding:1px 8px}
+.pagehead{display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 14px; margin-bottom:14px}
+.pagehead h2{margin:0; font-size:21px; font-weight:700; letter-spacing:-.01em; text-transform:none}
+.pagehead h2 span{font-weight:400; color:var(--tx2)}
+.pagehead p{margin:0; font-size:12.5px; color:var(--tx3)}
+/* wider screens get bigger type, so the page fills them instead of floating */
+@media (min-width:1600px){
+  body{font-size:15px}
+  header h1{font-size:17px}
+  .sub,.lbl,.note{font-size:13px}
+  nav#nav a{font-size:15.5px; padding:11px 14px}
+  .pagehead h2{font-size:24px}
+  .pagehead p{font-size:13.5px}
+  #filters select,#filters input{font-size:14px; padding:8px 12px}
+  .seg button{font-size:14px; padding:8px 14px}
+  .kpi2 .top{font-size:12.5px}
+  .kpi2 .val{font-size:40px}
+  .kpi2 .sub{font-size:14px}
+  .card h2{font-size:14px}
+  table{font-size:14.5px}
+  th{font-size:12.5px}
+  .badge{font-size:12px}
+  .rank{font-size:14.5px}
+  .legend{font-size:13.5px}
+  #chart text{font-size:12.5px}
+  .tag{font-size:12.5px}
+  table.rich td.title{max-width:420px}
+  table.rich .proj{max-width:240px}
+}
+@media (min-width:2200px){
+  body{font-size:17px}
+  table{font-size:16px}
+  .kpi2 .val{font-size:46px}
+}
+@media (max-width:860px){
+  .app{grid-template-columns:1fr}
+  nav#nav{flex-direction:row; overflow-x:auto; padding:10px 12px 0; border-right:0; background:none}
+  nav#nav a{white-space:nowrap}
+}
+@media (max-width:600px){ .app main{padding:12px} .grid2{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><span class="logo" aria-hidden="true">◍</span><div><h1>SkillMap · Global</h1><div class="sub" id="sub"></div></div></div>
+  <div class="controls" style="margin:0 0 0 auto">
+    <button type="button" class="close" id="themeBtn" aria-label="Switch between light and dark theme" title="Switch theme" style="padding:6px 10px"></button>
+    <span class="lbl">Period</span>
+    <div class="seg" id="range" role="group" aria-label="Period"></div>
+  </div>
+</header>
+<div id="filters">
+  <label class="lbl" for="fClient">Editor / client</label><select id="fClient"></select>
+  <label class="lbl" for="fProject">Project</label><select id="fProject"></select>
+  <input id="fSearch" type="search" placeholder="Search title, model, agent…" aria-label="Search sessions" autocomplete="off" />
+  <span class="count" id="count"></span>
+</div>
+<div class="app">
+  <nav id="nav" aria-label="Sections"></nav>
+  <main id="main" tabindex="-1"></main>
+</div>
+<div id="tip" role="tooltip"></div>
+<dialog id="dlg" aria-label="Session detail"><div id="dlgBody"></div></dialog>
+<dialog id="flow" aria-label="Session" tabindex="-1">
+  <div class="flowbar"><b id="flowTitle"></b><button class="close" type="button" id="flowReload">Reload</button><a id="flowOpen" target="_blank" rel="noopener">Open in a tab ↗</a><button class="close" type="button" id="flowBack" aria-label="Close the session">✕</button></div>
+  <div class="flowbody"><div class="loading" id="flowLoad"></div><iframe id="flowFrame" title="Session detail" src="about:blank"></iframe></div>
+</dialog>
+<script>
+const DATA = __DATA__;
+const $ = (s) => document.querySelector(s);
+const PALETTE = ['--c0','--c1','--c2','--c3','--c4','--c5','--c6','--c7'];
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+const fmtTok = (n) => n >= 1e9 ? (n / 1e9).toFixed(1) + 'B' : n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? Math.round(n / 1e3) + 'k' : String(Math.round(n));
+const fmtCost = (n) => (n >= 100 ? '$' + Math.round(n) : '$' + n.toFixed(2));
+const fmtMs = (ms) => ms >= 3600000 ? (ms / 3600000).toFixed(1) + ' h' : ms >= 60000 ? Math.round(ms / 60000) + ' min' : Math.round(ms / 1000) + ' s';
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const tokAll = (t) => t.input + t.output + t.reasoning + t.cacheRead + t.cacheWrite;
+const tokLive = (t) => t.input + t.output + t.reasoning + t.cacheWrite; // everything but cache reads
+
+const ICONS = {
+  pulse: '<svg viewBox="0 0 24 24"><path d="M3 12h4l2.5-7 5 14 2.5-7H21"/></svg>',
+  layers: '<svg viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/></svg>',
+  dollar: '<svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>',
+  clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  map: '<svg viewBox="0 0 24 24"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z"/><path d="M9 4v14M15 6v14"/></svg>',
+};
+const IC = {
+  clock: '<svg class="ico dim" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  terminal: '<svg class="ico dim" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M13 15h4"/></svg>',
+  code: '<svg class="ico dim" viewBox="0 0 24 24"><path d="m8 7-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/></svg>',
+  hex: '<svg class="ico dim" viewBox="0 0 24 24"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="m12 12 8-4.5M12 12v9M12 12 4 7.5"/></svg>',
+  check: '<svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>',
+  x: '<svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/></svg>',
+  warn: '<svg class="ico" viewBox="0 0 24 24"><path d="M12 4 2.5 20h19z"/><path d="M12 10v4M12 17h.01"/></svg>',
+  run: '<svg class="ico" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg>',
+  dot: '<svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/></svg>',
+};
+const clientIcon = (c) => (c === 'Terminal' ? IC.terminal : c === 'VS Code' ? IC.code : IC.hex);
+const SUN = '<svg class="ico" style="margin:0" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/></svg>';
+const MOON = '<svg class="ico" style="margin:0" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></svg>';
+const effTheme = () => document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+function paintThemeBtn() { $('#themeBtn').innerHTML = effTheme() === 'light' ? MOON : SUN; } // the icon is what you switch to
+$('#themeBtn').onclick = () => {
+  const next = effTheme() === 'light' ? 'dark' : 'light';
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem('skillmap-theme', next); } catch { /* not remembered */ }
+  render();
+};
+matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => { if (!document.documentElement.dataset.theme) render(); });
+const hash = (str) => { let h = 0; for (const c of str) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
+const avatar = (dir) => { const label = projectOf({ directory: dir }); const base = label.split('/').pop() || '?'; return `<span class="avatar" style="background:${css(PALETTE[hash(dir || '') % PALETTE.length])}" aria-hidden="true">${esc(base[0].toUpperCase())}</span>`; };
+const spark = (vals, tall) => { const h = tall ? 30 : 22, max = Math.max(...vals, 1); return `<span class="spark${tall ? ' tall' : ''}" aria-hidden="true">${vals.map((v) => `<i style="height:${v ? Math.max(3, Math.round((v / max) * h)) : 2}px"></i>`).join('')}</span>`; };
+const RESULT = { completed: ['COMPLETED', 'ok', 'check'], error: ['ERROR', 'bad', 'x'], aborted: ['ABORTED', 'warn', 'warn'], empty: ['EMPTY', 'mute', 'dot'] };
+const resultOf = (t) => (t.outcome === 'incomplete' ? (Date.now() - t.end < 300000 ? ['RUNNING', 'run', 'run'] : ['INCOMPLETE', 'mute', 'dot']) : RESULT[t.outcome] || [String(t.outcome).toUpperCase(), 'mute', 'dot']);
+
+const RUNTIME = { opencode: 'OpenCode', 'claude-code': 'Claude Code' };
+const CLIENT = { cli: 'Terminal', 'claude-vscode': 'VS Code', 'claude-desktop': 'Desktop', 'sdk-ts': 'SDK', 'sdk-py': 'SDK', 'sdk-cli': 'SDK', 'mcp': 'MCP', 'local-agent': 'Desktop agent' };
+const clientOf = (r) => r.runtime === 'opencode' ? 'OpenCode' : (r.client ? (CLIENT[r.client] || r.client) : 'Claude Code');
+// a worktree reads as "repo · worktree", not as a folder called worktrees/<name>
+const projectOf = (r) => {
+  const dir = r.directory || '';
+  const wt = /([^/\\]+)[/\\]\.claude[/\\]worktrees[/\\]([^/\\]+)/.exec(dir);
+  return wt ? `${wt[1]} · ${wt[2]}` : dir.split(/[\\/]/).filter(Boolean).slice(-2).join('/') || '(unknown)';
+};
+
+const METRICS = {
+  cost: { label: 'Cost', val: (r) => r.cost, fmt: fmtCost },
+  tokens: { label: 'Tokens', val: (r) => tokAll(r.tokens), fmt: fmtTok },
+  fresh: { label: 'Tokens without cache reads', val: (r) => tokLive(r.tokens), fmt: fmtTok },
+};
+const GROUPS = {
+  project: { label: 'Project', key: projectOf },
+  client: { label: 'Editor / client', key: clientOf },
+  model: { label: 'Model', key: (r) => r.model || '(unknown)' },
+  agent: { label: 'Agent', key: (r) => r.agent || (r.parent ? 'subagent' : 'main') },
+};
+const RANGES = [['7d', 7], ['30d', 30], ['all', 0]];
+
+const VIEWS = [['overview', 'Overview'], ['sessions', 'Sessions'], ['projects', 'Projects'], ['usage', 'Skills & MCP']];
+const viewFromHash = () => { const v = location.hash.slice(1); return VIEWS.some(([k]) => k === v) ? v : 'overview'; };
+const st = { view: viewFromHash(), metric: 'cost', group: 'project', range: '30d', client: '', project: '', q: '', sort: 'start', psort: 'last', plimit: 25, page: 0, usage: 'skills', usageLimit: 25 };
+const dayStart = (t) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
+// a calendar day later: days are 23 or 25 hours long when the clocks change
+const addDays = (t, n) => { const d = new Date(t); d.setDate(d.getDate() + n); return d.getTime(); };
+// a round axis step at or above `x`/4
+const niceStep = (x) => { const p = 10 ** Math.floor(Math.log10(x)); const f = x / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p; };
+const dayLabel = (t) => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+function periodRows() {
+  const days = RANGES.find(([k]) => k === st.range)[1];
+  const from = days ? addDays(dayStart(Date.now()), -(days - 1)) : 0;
+  return DATA.rows.filter((r) => r.start >= from);
+}
+// a subagent session follows its parent's client and project filters
+const sessionIndex = new Map(DATA.rows.map((r) => [r.id, r]));
+const rootOf = (r) => { while (r.parent && sessionIndex.has(r.parent)) r = sessionIndex.get(r.parent); return r; };
+const haystack = (r) => [r.title, r.model, r.agent, r.directory].join(' ').toLowerCase();
+function visibleRows() {
+  const q = st.q.trim().toLowerCase();
+  return periodRows().filter((r) => {
+    const root = rootOf(r);
+    return (!st.client || clientOf(root) === st.client) && (!st.project || root.directory === st.project) && (!q || haystack(r).includes(q) || haystack(root).includes(q));
+  });
+}
+
+function fillSelect(el, key, entries, all) {
+  el.innerHTML = `<option value="">${esc(all)}</option>` + entries.map(([v, label]) => `<option value="${esc(v)}"${st[key] === v ? ' selected' : ''}>${esc(label)}</option>`).join('');
+  el.onchange = () => { st[key] = el.value; st.page = 0; render(); };
+}
+function renderFilters() {
+  const rows = periodRows().map(rootOf);
+  fillSelect($('#fClient'), 'client', [...new Set(rows.map(clientOf))].sort().map((c) => [c, c]), 'All');
+  const dirs = new Map();
+  for (const r of rows) dirs.set(r.directory, projectOf(r));
+  fillSelect($('#fProject'), 'project', [...dirs].sort((a, b) => a[1].localeCompare(b[1])), 'All projects');
+}
+$('#fSearch').oninput = (e) => { st.q = e.target.value; st.page = 0; render(); };
+
+function seg(el, options, key) {
+  el.innerHTML = options.map(([k, label]) => `<button type="button" data-k="${k}" aria-pressed="${st[key] === k}">${esc(label)}</button>`).join('');
+  el.onclick = (e) => { const b = e.target.closest('button'); if (b) { st[key] = b.dataset.k; if (key === 'usage') st.usageLimit = 25; st.page = 0; render(); } };
+}
+
+function render() {
+  const rows = visibleRows();
+  const M = METRICS[st.metric], G = GROUPS[st.group];
+  $('#sub').textContent = `${[...new Set(DATA.rows.map((r) => RUNTIME[r.runtime]))].join(' + ') || 'no sessions'} · sessions of the last ${DATA.since} · generated ${new Date(DATA.generatedAt).toLocaleString()}`;
+  paintThemeBtn();
+  seg($('#range'), RANGES.map(([k]) => [k, k === 'all' ? 'All loaded' : 'Last ' + k]), 'range');
+  renderFilters();
+
+  const main = $('#main');
+  const top = rows.filter((r) => !r.parent);
+  $('#count').textContent = `${top.length} session${top.length === 1 ? '' : 's'}`;
+  const counts = { sessions: top.length, projects: new Set(top.map((r) => r.directory)).size };
+  $('#nav').innerHTML = VIEWS.map(([k, label]) => `<a href="#${k}" ${st.view === k ? 'aria-current="page"' : ''}>${label}${counts[k] != null ? `<span class="n">${counts[k]}</span>` : ''}</a>`).join('');
+  if (!rows.length) { main.innerHTML = '<div class="empty">No sessions match.</div>'; return; }
+
+  const total = rows.reduce((a, r) => { for (const k in r.tokens) a[k] += r.tokens[k]; a.cost += r.cost; a.ms += r.activeMs; return a; }, { input: 0, output: 0, reasoning: 0, cacheRead: 0, cacheWrite: 0, cost: 0, ms: 0 });
+  const est = rows.some((r) => r.costEstimated);
+  const tokSum = tokAll(total);
+
+  // group totals, ranked
+  const sums = new Map();
+  for (const r of rows) { const k = G.key(r); sums.set(k, (sums.get(k) || 0) + M.val(r)); }
+  const ranked = [...sums].sort((a, b) => b[1] - a[1]);
+  const shown = ranked.slice(0, PALETTE.length - 1).map(([k]) => k);
+  const color = (k) => { const i = shown.indexOf(k); return i < 0 ? css('--other') : css(PALETTE[i]); };
+  const bucket = (r) => { const k = G.key(r); return shown.includes(k) ? k : 'Other'; };
+
+  // per-day stacks
+  const byDay = new Map();
+  for (const r of rows) {
+    const d = dayStart(r.start);
+    const m = byDay.get(d) || new Map();
+    const b = bucket(r);
+    m.set(b, (m.get(b) || 0) + M.val(r));
+    byDay.set(d, m);
+  }
+  const first = Math.min(...byDay.keys()), last = dayStart(Date.now());
+  const days = [];
+  for (let d = first; d <= last; d = addDays(d, 1)) days.push(d);
+  const order = [...shown, 'Other'];
+  const dayTotal = (d) => [...(byDay.get(d)?.values() || [])].reduce((a, b) => a + b, 0);
+  const max = niceStep(Math.max(...days.map(dayTotal), 1e-9) / 4) * 4;
+
+  const perDay = (top.length / Math.max(1, days.length)).toFixed(1);
+  const bySessions = new Map();
+  for (const r of top) bySessions.set(projectOf(r), (bySessions.get(projectOf(r)) || 0) + 1);
+  const busiest = [...bySessions].sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+  const overview = `
+    <div class="pagehead"><h2>Overview <span>Cost and tokens</span></h2><p>Across every project in the selection.</p></div>
+    <div class="kpis2">
+      <div class="kpi2"><div class="top">Sessions ${ICONS.pulse.replace('<svg','<svg style="color:var(--k-sessions)"')}</div><div class="val" style="color:var(--k-sessions)">${top.length}</div><div class="sub">${perDay} per day${rows.length > top.length ? ` · +${rows.length - top.length} subagent` : ''}</div></div>
+      <div class="kpi2"><div class="top">Total tokens ${ICONS.layers.replace('<svg','<svg style="color:var(--k-tokens)"')}</div><div class="val" style="color:var(--k-tokens)">${fmtTok(tokSum)}</div><div class="sub">Cache reads ${fmtTok(total.cacheRead)}</div></div>
+      <div class="kpi2"><div class="top">Total cost ${ICONS.dollar.replace('<svg','<svg style="color:var(--k-cost)"')}</div><div class="val" style="color:var(--k-cost)">${est ? '≈' : ''}${fmtCost(total.cost)}</div><div class="sub">${est ? (rows.some((r) => !r.costEstimated && r.cost) ? 'Estimated + reported' : 'Estimated from list prices') : 'Reported by the runtime'}</div></div>
+      <div class="kpi2"><div class="top">Agent active time ${ICONS.clock.replace('<svg','<svg style="color:var(--k-time)"')}</div><div class="val" style="color:var(--k-time)">${fmtMs(total.ms)}</div><div class="sub">avg ${fmtMs(total.ms / Math.max(1, top.length))} per session</div></div>
+      <div class="kpi2"><div class="top">Projects ${ICONS.map.replace('<svg','<svg style="color:var(--k-proj)"')}</div><div class="val" style="color:var(--k-proj)">${new Set(top.map(projectOf)).size}</div><div class="sub" title="${esc(busiest)}">Most active: ${esc(busiest)}</div></div>
+    </div>
+
+    <section class="card">
+      <h2>${esc(M.label)} per day, by ${esc(G.label.toLowerCase())}</h2>
+      <div class="controls">
+        <span class="lbl">Show</span><div class="seg" id="metric" role="group" aria-label="Metric"></div>
+        <span class="lbl">Split by</span><div class="seg" id="group" role="group" aria-label="Split by"></div>
+      </div>
+      <svg id="chart" role="img" aria-label="${esc(M.label)} per day"></svg>
+      <div class="legend">${order.filter((k) => k !== 'Other' || ranked.length > shown.length).map((k) => `<span><i style="background:${k === 'Other' ? css('--other') : color(k)}"></i>${esc(k)}</span>`).join('')}</div>
+      <p class="note">A session counts on the day it started. Subagent sessions are included.</p>
+    </section>
+
+    <div class="grid2">
+      <section class="card">
+        <h2>${esc(G.label)} ranking · ${esc(M.label.toLowerCase())}</h2>
+        <div class="rank">${ranked.slice(0, 12).map(([k, v]) => `
+          <span class="name" title="${esc(k)}">${esc(k)}</span>
+          <span class="track"><span class="fill" style="display:block; width:${(v / ranked[0][1]) * 100}%; background:${color(k)}"></span></span>
+          <span class="val">${M.fmt(v)}</span>`).join('')}</div>
+        ${ranked.length > 12 ? `<p class="note">${ranked.length - 12} more not shown.</p>` : ''}
+      </section>
+      <section class="card">
+        <h2>Tokens by kind</h2>
+        <div class="kinds" role="img" aria-label="Tokens by kind">${[['cacheRead', '--c1'], ['cacheWrite', '--c3'], ['input', '--c0'], ['output', '--c2'], ['reasoning', '--c4']].map(([k, c]) => `<span style="width:${(total[k] / tokSum) * 100}%; background:${css(c)}" title="${k}"></span>`).join('')}</div>
+        <div class="rank">${[['cacheRead', 'Cache reads', '--c1'], ['cacheWrite', 'Cache writes', '--c3'], ['input', 'Input', '--c0'], ['output', 'Output', '--c2'], ['reasoning', 'Reasoning', '--c4']].map(([k, label, c]) => `
+          <span class="name"><i style="display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;background:${css(c)}"></i>${label}</span>
+          <span class="track"><span class="fill" style="display:block; width:${(total[k] / tokSum) * 100}%; background:${css(c)}"></span></span>
+          <span class="val">${fmtTok(total[k])}</span>`).join('')}</div>
+        <p class="note">Cache reads are usually most of the total; “Tokens without cache reads” shows the rest.</p>
+      </section>
+    </div>`;
+
+  if (st.view === 'sessions') {
+    main.innerHTML = `<div class="pagehead"><h2>Sessions <span>Performance and debugging</span></h2><p>Every session with its subagents added up. Open one for its flow.</p></div>
+      <section class="card tablecard"><div id="history"></div></section>`;
+    drawHistory(rows, top, est);
+  } else if (st.view === 'projects') {
+    main.innerHTML = `<div class="pagehead"><h2>Projects <span>Where the agents worked</span></h2><p>Open one for its map, insights and runtime.</p></div>
+      <div id="projectsTable"></div>`;
+    drawProjects(rows, top);
+  } else if (st.view === 'usage') {
+    main.innerHTML = `<div class="pagehead"><h2>Skills &amp; MCP <span>Agent activity</span></h2><p>What the agents called in the sessions on screen.</p></div>
+      <div class="controls"><div class="seg" id="usageTab" role="group" aria-label="Kind"></div></div><div class="tablewrap" id="usageTable"></div>`;
+    drawUsage(rows);
+  } else {
+    main.innerHTML = overview;
+    seg($('#metric'), Object.entries(METRICS).map(([k, m]) => [k, m.label]), 'metric');
+    seg($('#group'), Object.entries(GROUPS).map(([k, g]) => [k, g.label]), 'group');
+    drawChart(days, byDay, order, color, max, M);
+  }
+}
+
+const PAGE = 20;
+function drawHistory(rows, top, est) {
+  // each session with its subagents' tokens, cost and time added
+  const agg = new Map(top.map((t) => [t.id, { subs: 0, tokens: tokAll(t.tokens), cost: t.cost, ms: t.activeMs }]));
+  for (const r of rows) {
+    if (!r.parent) continue;
+    const a = agg.get(rootOf(r).id);
+    if (a) { a.subs++; a.tokens += tokAll(r.tokens); a.cost += r.cost; a.ms += r.activeMs; }
+  }
+  const sorters = { start: (a, b) => b.start - a.start, tokens: (a, b) => agg.get(b.id).tokens - agg.get(a.id).tokens, cost: (a, b) => agg.get(b.id).cost - agg.get(a.id).cost, ms: (a, b) => agg.get(b.id).ms - agg.get(a.id).ms };
+  const list = [...top].sort(sorters[st.sort]);
+  const pages = Math.max(1, Math.ceil(list.length / PAGE));
+  st.page = Math.min(st.page, pages - 1);
+  const th = (key, label, cls = '') => `<th class="${cls}" aria-sort="${st.sort === key ? 'descending' : 'none'}"><button type="button" data-sort="${key}">${label}${st.sort === key ? ' ↓' : ''}</button></th>`;
+  const when = (t) => new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  const el = $('#history');
+  el.innerHTML = `<div class="tablewrap"><table class="rich">
+    <thead><tr>${th('start', 'Started')}<th>Project</th><th>Session</th><th>Client</th><th>Model</th>${th('ms', 'Active time', 'num')}${th('tokens', 'Tokens', 'num')}${th('cost', 'Cost', 'num')}<th>Result</th></tr></thead>
+    <tbody>${list.slice(st.page * PAGE, (st.page + 1) * PAGE).map((t) => {
+      const a = agg.get(t.id), [label, tone, icon] = resultOf(t);
+      return `<tr data-id="${esc(t.id)}" data-key="${esc(t.id)}" tabindex="0" role="button" aria-label="Open session ${esc(t.title || t.id)}">
+        <td class="dim" style="white-space:nowrap">${IC.clock}${when(t.start)}</td>
+        <td title="${esc(t.directory)}"><span class="proj">${avatar(t.directory)}<span class="t">${esc(projectOf(t))}</span></span></td>
+        <td class="title" title="${esc(t.title || t.id)}"><span class="slink">${esc(t.title || t.id)}</span>${a.subs ? ` <span class="tag">+${a.subs} sub</span>` : ''}</td>
+        <td style="white-space:nowrap">${clientIcon(clientOf(t))}${esc(clientOf(t))}</td>
+        <td class="dim">${esc(t.model || '')}</td>
+        <td class="num"><span class="cell">${fmtMs(a.ms)}${spark(t.spark || [])}</span></td>
+        <td class="num">${fmtTok(a.tokens)}</td>
+        <td class="num">${t.costEstimated ? '≈' : ''}${fmtCost(a.cost)}</td>
+        <td><span class="badge ${tone}">${IC[icon]}${label}</span></td></tr>`;
+    }).join('')}</tbody></table></div>
+    <div class="pager"><button type="button" id="first" ${st.page === 0 ? 'disabled' : ''}>First</button><button type="button" id="prev" ${st.page === 0 ? 'disabled' : ''}>Previous</button><span>Page ${st.page + 1} of ${pages}</span><button type="button" id="next" ${st.page >= pages - 1 ? 'disabled' : ''}>Next</button><button type="button" id="last" ${st.page >= pages - 1 ? 'disabled' : ''}>Last</button></div>
+    <p class="note">Tokens, cost and time include each session's subagents.${est ? ' Claude Code costs are estimates.' : ''}</p>`;
+  el.onclick = (e) => {
+    const b = e.target.closest('button');
+    if (b) {
+      if (b.dataset.sort) { st.sort = b.dataset.sort; st.page = 0; render(); }
+      else if (b.id === 'first') { st.page = 0; render(); }
+      else if (b.id === 'last') { st.page = 1e9; render(); }
+      else if (b.id === 'prev') { st.page--; render(); }
+      else if (b.id === 'next') { st.page++; render(); }
+      return;
+    }
+    const tr = e.target.closest('tr[data-id]');
+    if (tr) openSession(tr.dataset.id);
+  };
+  el.onkeydown = (e) => {
+    const tr = e.target.closest('tr[data-id]');
+    if (tr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openSession(tr.dataset.id); }
+  };
+}
+
+// skills, subagent types and MCP servers across the sessions on screen, one kind at a time
+const USAGE = {
+  skills: { label: 'Skills', unit: 'Calls', pick: (u) => u.skills || {} },
+  agents: { label: 'Subagent types', unit: 'Runs', pick: (u) => u.agents || {} },
+  mcp: { label: 'MCP servers', unit: 'Calls', pick: (u) => u.mcp || {}, errors: true },
+};
+function drawUsage(rows) {
+  const U = USAGE[st.usage];
+  const startDay = Math.min(...rows.map((r) => dayStart(r.start)));
+  const nDays = Math.min(14, Math.round((dayStart(Date.now()) - startDay) / 86400000) + 1);
+  const dayIndex = (t) => nDays - 1 - Math.round((dayStart(Date.now()) - dayStart(t)) / 86400000);
+  const allProjects = new Set(rows.map((r) => rootOf(r).directory)).size;
+  const m = new Map();
+  for (const r of rows) {
+    const root = rootOf(r);
+    for (const [name, v] of Object.entries(U.pick(r.usage || {}))) {
+      const e = m.get(name) || { calls: 0, errors: 0, sessions: new Set(), projects: new Set(), tools: {}, last: 0, perDay: new Array(nDays).fill(0), sessDay: new Array(nDays).fill(0) };
+      const c = v.calls ?? v;
+      e.calls += c;
+      e.errors += v.errors || 0;
+      e.sessions.add(root.id);
+      e.projects.add(root.directory);
+      e.last = Math.max(e.last, r.start);
+      const i = dayIndex(r.start);
+      if (i >= 0) { e.perDay[i] += c; e.sessDay[i] += 1; }
+      for (const [t, n] of Object.entries(v.tools || {})) e.tools[t] = (e.tools[t] || 0) + n;
+      m.set(name, e);
+    }
+  }
+  const list = [...m].sort((a, b) => b[1].calls - a[1].calls);
+  const counts = Object.fromEntries(Object.entries(USAGE).map(([k, u]) => [k, new Set(rows.flatMap((r) => Object.keys(u.pick(r.usage || {})))).size]));
+  seg($('#usageTab'), Object.entries(USAGE).map(([k, u]) => [k, `${u.label} ${counts[k]}`]), 'usage');
+  const when = (t) => new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  const el = $('#usageTable');
+  const recent = Date.now() - 3 * 86400000;
+  const share = (n) => n / Math.max(1, allProjects);
+  const tone = (n) => (share(n) >= 0.5 ? 'var(--b-ok)' : share(n) >= 0.2 ? 'var(--b-vio)' : 'var(--b-warn)');
+  const nameCell = (name, e) => {
+    const info = st.usage === 'skills' ? (DATA.skills || {})[name] : null;
+    const badges = [e.last >= recent ? '<span class="badge ok sm">Active</span>' : '', info ? `<span class="badge ${info.scope === 'global' ? 'vio' : 'run'} sm">${info.scope === 'global' ? 'Global' : 'Project'}</span>` : '', st.usage === 'mcp' ? `<span class="badge mute sm">${Object.keys(e.tools).length} tools</span>` : ''].join('');
+    return `<div class="skill"><span class="sq" style="background:${css(PALETTE[hash(name) % PALETTE.length])}" aria-hidden="true">${esc(name[0].toUpperCase())}</span><div><div class="nm">${esc(name)}${badges}</div>${info?.description ? `<div class="ds" title="${esc(info.description)}">${esc(info.description)}</div>` : st.usage === 'mcp' ? `<div class="ds">${Object.entries(e.tools).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([n]) => esc(n)).join(', ')}</div>` : ''}</div></div>`;
+  };
+  el.innerHTML = list.length ? `<table class="rich tiles">
+      <thead><tr><th>${esc(U.label.replace(/s$/, ''))}</th><th class="num">${U.unit}</th>${U.errors ? '<th class="num">Errors</th>' : ''}<th class="num">Sessions</th><th>Projects</th><th>Last used</th></tr></thead>
+      <tbody>${list.slice(0, st.usageLimit).map(([name, e]) => `<tr>
+          <td>${nameCell(name, e)}</td>
+          <td class="num"><span class="cell">${e.calls}${spark(e.perDay, true)}</span></td>${U.errors ? `<td class="num">${e.errors || ''}</td>` : ''}
+          <td class="num"><span class="cell">${e.sessions.size}${spark(e.sessDay, true)}</span></td>
+          <td><span class="pbar"><b>${e.projects.size}</b><span class="track"><i style="width:${Math.max(3, share(e.projects.size) * 100)}%; background:${tone(e.projects.size)}"></i></span></span></td>
+          <td class="dim" style="white-space:nowrap">${when(e.last)}</td></tr>`).join('')}</tbody></table>
+      ${list.length > st.usageLimit ? `<button type="button" class="fullbtn" id="moreUsage">Show more (${list.length - st.usageLimit} left) ›</button>` : ''}
+      <p class="note">Bars show calls and sessions per day over the last ${nDays} days. The project bar is the share of the ${allProjects} projects on screen. “Active” = used in the last 3 days.${U.errors ? '' : ''}</p>`
+    : '<p class="note">None in this selection.</p>';
+  el.onclick = (e) => { if (e.target.closest('#moreUsage')) { st.usageLimit += 25; render(); } };
+}
+
+// one session: its numbers, its subagents and what it called
+function openSession(id) {
+  const t = sessionIndex.get(id);
+  if (!t) return;
+  if (DATA.live) return openFlow(t);
+  const family = DATA.rows.filter((r) => rootOf(r).id === id);
+  const subs = family.filter((r) => r.parent);
+  const sum = (f) => family.reduce((n, r) => n + f(r), 0);
+  const tok = family.reduce((a, r) => { for (const k in r.tokens) a[k] = (a[k] || 0) + r.tokens[k]; return a; }, {});
+  const merge = (pick) => { const m = {}; for (const r of family) for (const [k, v] of Object.entries(pick(r.usage || {}))) m[k] = (m[k] || 0) + v; return m; };
+  const mcp = {};
+  for (const r of family) for (const [k, v] of Object.entries(r.usage?.mcp || {})) { const e = (mcp[k] ||= { calls: 0, errors: 0, tools: {} }); e.calls += v.calls; e.errors += v.errors; for (const [n, c] of Object.entries(v.tools)) e.tools[n] = (e.tools[n] || 0) + c; }
+  const chips = (obj, label) => { const e = Object.entries(obj).sort((a, b) => b[1] - a[1]); return `<h4>${label}</h4>` + (e.length ? `<div class="chips">${e.map(([k, n]) => `<span class="tag">${esc(k)} · ${n}</span>`).join('')}</div>` : '<p class="note">None.</p>'); };
+  const est = family.some((r) => r.costEstimated);
+  $('#dlgBody').innerHTML = `
+    <div class="dhead"><div style="flex:1"><h3>${esc(t.title || t.id)}</h3>
+      <div class="meta"><span>${esc(clientOf(t))}</span><span>${esc(t.model || '')}</span><span>${new Date(t.start).toLocaleString()}</span><span>${esc(t.outcome)}</span><span title="${esc(t.directory)}">${esc(t.directory)}</span></div></div>
+      <button class="close" type="button" id="dlgClose">Close</button></div>
+    <div class="dbody">
+      <div class="kpis" style="margin-bottom:0">
+        <div class="kpi"><b>${fmtTok(tokAll(tok))}</b><span>tokens (${fmtTok(tok.cacheRead || 0)} cache reads)</span></div>
+        <div class="kpi"><b>${est ? '≈' : ''}${fmtCost(sum((r) => r.cost))}</b><span>cost${subs.length ? ' with subagents' : ''}</span></div>
+        <div class="kpi"><b>${fmtMs(sum((r) => r.activeMs))}</b><span>agent active time</span></div>
+        <div class="kpi"><b>${subs.length}</b><span>subagent sessions</span></div>
+      </div>
+      ${chips(merge((u) => u.skills || {}), 'Skills')}
+      ${chips(merge((u) => u.agents || {}), 'Subagent types')}
+      <h4>MCP servers</h4>${Object.keys(mcp).length ? `<div class="tablewrap"><table><thead><tr><th>Server</th><th class="num">Calls</th><th class="num">Errors</th><th>Tools</th></tr></thead><tbody>${Object.entries(mcp).map(([k, e]) => `<tr><td>${esc(k)}</td><td class="num">${e.calls}</td><td class="num">${e.errors || ''}</td><td class="dim" style="white-space:normal">${Object.entries(e.tools).sort((a, b) => b[1] - a[1]).map(([n, c]) => esc(n) + ' · ' + c).join(', ')}</td></tr>`).join('')}</tbody></table></div>` : '<p class="note">None.</p>'}
+      ${chips(merge((u) => u.tools || {}), 'Built-in tools by kind')}
+      ${subs.length ? `<h4>Subagent sessions</h4><div class="tablewrap"><table><thead><tr><th>Agent</th><th>Task</th><th>Model</th><th class="num">Active</th><th class="num">Tokens</th><th class="num">Cost</th></tr></thead><tbody>${subs.sort((a, b) => a.start - b.start).map((r) => `<tr><td>${esc(r.agent || 'subagent')}</td><td class="title" title="${esc(r.title)}">${esc(r.title)}</td><td class="dim">${esc(r.model || '')}</td><td class="num">${fmtMs(r.activeMs)}</td><td class="num">${fmtTok(tokAll(r.tokens))}</td><td class="num">${r.costEstimated ? '≈' : ''}${fmtCost(r.cost)}</td></tr>`).join('')}</tbody></table></div>` : ''}
+      <p class="note">The session's flow, timeline and prompts need the served page: run <code>skillmap --global</code> without <code>-o</code>.</p>
+    </div>`;
+  const dlg = $('#dlg');
+  $('#dlgClose').onclick = () => dlg.close();
+  dlg.showModal();
+}
+
+// served: a session opens its project's report, at the session's page (flow, skills, subagents, MCP, timeline)
+function openPanel({ title, src, rowKey, loadingText }) {
+  const frame = $('#flowFrame'), dlg = $('#flow');
+  // the report follows the page's theme
+  src = src.includes('#') ? src.replace('#', `&theme=${effTheme()}#`) : `${src}&theme=${effTheme()}`;
+  const mark = () => document.querySelectorAll('tr.sel').forEach((r) => r.classList.remove('sel'));
+  mark();
+  if (rowKey) document.querySelector(`tr[data-key="${CSS.escape(rowKey)}"]`)?.classList.add('sel');
+  $('#flowTitle').textContent = title;
+  $('#flowOpen').href = src.replace('&embed=session', '');
+  const load = () => {
+    $('#flowLoad').hidden = false;
+    $('#flowLoad').innerHTML = `<span class="spin" aria-hidden="true"></span>${esc(loadingText)}`;
+    frame.style.visibility = 'hidden';
+    frame.src = src;
+  };
+  frame.onload = () => { if (frame.src === 'about:blank') return; $('#flowLoad').hidden = true; frame.style.visibility = 'visible'; };
+  $('#flowReload').onclick = load;
+  $('#flowBack').onclick = () => dlg.close();
+  dlg.onclose = () => { frame.src = 'about:blank'; mark(); };
+  load();
+  dlg.showModal();
+  dlg.focus(); // not on the first button: no focus ring in the header
+}
+
+// served: a session opens its project's report at the session's page (flow, skills, subagents, MCP, timeline)
+const openFlow = (t) => openPanel({ title: t.title || t.id, src: `/project?dir=${encodeURIComponent(t.directory)}&embed=session#session/${encodeURIComponent(t.id)}`, rowKey: t.id, loadingText: 'Loading the session…' });
+// served: a project opens its full report (map, hierarchy, insights, runtime)
+const openProject = (dir) => openPanel({ title: projectOf({ directory: dir }), src: `/project?dir=${encodeURIComponent(dir)}`, rowKey: dir, loadingText: 'Loading the project…' });
+
+const PROJ_PAGE_NOTE = 'Skills and agents are what the folder defines (SKILL.md, agents, instruction files); the rest comes from the sessions on screen.';
+function drawProjects(rows, top) {
+  const nDays = 14, today = dayStart(Date.now());
+  const by = new Map();
+  for (const r of rows) {
+    const root = rootOf(r), key = root.directory || '(unknown)';
+    const p = by.get(key) || { dir: key, sessions: 0, tokens: 0, cost: 0, last: 0, est: false, clients: new Set(), perDay: new Array(nDays).fill(0) };
+    p.tokens += tokAll(r.tokens);
+    p.cost += r.cost;
+    p.est ||= r.costEstimated;
+    if (!r.parent) {
+      p.sessions++;
+      p.last = Math.max(p.last, r.start);
+      p.clients.add(clientOf(r));
+      const i = nDays - 1 - Math.round((today - dayStart(r.start)) / 86400000);
+      if (i >= 0) p.perDay[i]++;
+    }
+    by.set(key, p);
+  }
+  const SORT = { last: (a, b) => b.last - a.last, cost: (a, b) => b.cost - a.cost, tokens: (a, b) => b.tokens - a.tokens, sessions: (a, b) => b.sessions - a.sessions };
+  const list = [...by.values()].filter((p) => p.sessions).sort(SORT[st.psort]);
+  const th = (key, label, cls = '') => `<th class="${cls}"><button type="button" data-psort="${key}">${label}${st.psort === key ? ' ↓' : ''}</button></th>`;
+  const when = (t) => new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  const el = $('#projectsTable');
+  el.innerHTML = `<table class="rich tiles">
+    <thead><tr><th>Project</th>${th('sessions', 'Sessions', 'num')}${th('tokens', 'Tokens', 'num')}${th('cost', 'Cost', 'num')}<th class="num" title="Defined in the folder">Skills</th><th class="num" title="Defined in the folder">Agents</th>${th('last', 'Last activity')}</tr></thead>
+    <tbody>${list.slice(0, st.plimit).map((p) => {
+      const info = (DATA.projects || {})[p.dir];
+      return `<tr data-key="${esc(p.dir)}" data-dir="${esc(p.dir)}" tabindex="0" role="button" aria-label="Open project ${esc(projectOf({ directory: p.dir }))}">
+        <td><div class="skill">${avatar(p.dir).replace('margin-right:8px', '')}<div><div class="nm">${esc(projectOf({ directory: p.dir }))}${[...p.clients].map((c) => `<span class="tag">${esc(c)}</span>`).join('')}</div><div class="ds" title="${esc(p.dir)}">${esc(p.dir)}</div></div></div></td>
+        <td class="num"><span class="cell">${p.sessions}${spark(p.perDay, true)}</span></td>
+        <td class="num">${fmtTok(p.tokens)}</td>
+        <td class="num">${p.est ? '≈' : ''}${fmtCost(p.cost)}</td>
+        <td class="num">${info ? info.skills : '–'}</td>
+        <td class="num">${info ? info.agents : '–'}</td>
+        <td class="dim" style="white-space:nowrap">${when(p.last)}</td></tr>`;
+    }).join('')}</tbody></table>
+    ${list.length > st.plimit ? `<button type="button" class="fullbtn" id="moreProj">Show more (${list.length - st.plimit} left) ›</button>` : ''}
+    <p class="note">${PROJ_PAGE_NOTE} “–” = the folder is gone, or it is your home folder (not scanned). Bars: sessions per day, last ${nDays} days.</p>`;
+  const open = (tr) => { if (!tr) return; if (DATA.live) openProject(tr.dataset.dir); else el.querySelector('.note').insertAdjacentHTML('beforebegin', '<p class="note" role="status">The project report needs the served page: run <code>skillmap --global</code> without <code>-o</code>.</p>'); };
+  el.onclick = (e) => {
+    const b = e.target.closest('button');
+    if (b?.dataset.psort) { st.psort = b.dataset.psort; render(); return; }
+    if (b?.id === 'moreProj') { st.plimit += 25; render(); return; }
+    open(e.target.closest('tr[data-dir]'));
+  };
+  el.onkeydown = (e) => { const tr = e.target.closest('tr[data-dir]'); if (tr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(tr); } };
+}
+
+function drawChart(days, byDay, order, color, max, M) {
+  const svg = $('#chart');
+  const W = Math.max(600, svg.parentElement.clientWidth - 2), H = 280;
+  const L = 54, R = 8, T = 10, B = 26;
+  const iw = W - L - R, ih = H - T - B;
+  const bw = iw / days.length;
+  const gap = Math.min(3, bw * 0.2);
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  let out = '';
+  for (let i = 0; i <= 4; i++) {
+    const y = T + ih - (ih * i) / 4;
+    out += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y}" y2="${y}"/><text x="${L - 6}" y="${y + 4}" text-anchor="end">${M.fmt((max * i) / 4)}</text>`;
+  }
+  const every = Math.ceil(days.length / Math.floor(iw / 56));
+  days.forEach((d, i) => {
+    const x = L + i * bw;
+    if (i % every === 0) out += `<text x="${x + bw / 2}" y="${H - 8}" text-anchor="middle">${dayLabel(d)}</text>`;
+    let y = T + ih;
+    const parts = byDay.get(d) || new Map();
+    for (const k of order) {
+      const v = parts.get(k);
+      if (!v) continue;
+      const h = (v / max) * ih;
+      y -= h;
+      out += `<rect class="bar" x="${x + gap / 2}" y="${y}" width="${Math.max(1, bw - gap)}" height="${Math.max(0.5, h)}" fill="${k === 'Other' ? css('--other') : color(k)}" data-d="${d}" data-k="${esc(k)}"/>`;
+    }
+  });
+  svg.innerHTML = out;
+  svg.onmousemove = (e) => {
+    const r = e.target.closest('rect.bar');
+    const tip = $('#tip');
+    if (!r) { tip.style.display = 'none'; return; }
+    const d = Number(r.dataset.d), parts = byDay.get(d);
+    const total = [...parts.values()].reduce((a, b) => a + b, 0);
+    tip.innerHTML = `<b>${dayLabel(d)} · ${M.fmt(total)}</b>` + order.filter((k) => parts.get(k)).map((k) => `<div class="r"><span><i style="display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;background:${k === 'Other' ? css('--other') : color(k)}"></i>${esc(k)}</span><span>${M.fmt(parts.get(k))}</span></div>`).join('');
+    tip.style.display = 'block';
+    tip.style.left = Math.min(e.clientX + 14, innerWidth - 320) + 'px';
+    tip.style.top = e.clientY + 14 + 'px';
+  };
+  svg.onmouseleave = () => { $('#tip').style.display = 'none'; };
+}
+
+$('#dlg').addEventListener('click', (e) => { if (e.target === e.currentTarget) e.currentTarget.close(); });
+$('#flow').addEventListener('click', (e) => { if (e.target === e.currentTarget) e.currentTarget.close(); });
+
+addEventListener('hashchange', () => { st.view = viewFromHash(); render(); $('#main').focus({ preventScroll: true }); window.scrollTo(0, 0); });
+
+let resizeTimer;
+addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 120); });
+render();
+// a link to one project: <page>#project=<folder>
+const deepProject = /^#project=(.+)$/.exec(location.hash)?.[1];
+if (deepProject && DATA.live && decodeURIComponent(deepProject) in (DATA.projects || {})) { st.view = 'projects'; render(); openProject(decodeURIComponent(deepProject)); }
+// a link to one session: <page>#session=<id>
+const deepLink = /^#session=(.+)$/.exec(location.hash)?.[1];
+if (deepLink && sessionIndex.has(decodeURIComponent(deepLink))) { st.view = 'sessions'; render(); openSession(decodeURIComponent(deepLink)); } // the list stays behind the panel
+</script>
+</body>
+</html>
