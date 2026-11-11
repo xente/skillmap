@@ -183,16 +183,19 @@ async function globalReport(args) {
   if (args._.length) throw new Error('--global covers every project: it takes no project folder');
   const t0 = Date.now();
   if (!args.out) enableCache(); // served: later reloads only re-read the session files that changed
-  const { traces, mcpServers, sources, notes } = await loadAllTraces(process.cwd(), { ...args, all: true });
-  if (!traces.length) throw new Error(notes.length ? notes.join('; ') : `no ${runtimeLabel(RUNTIMES[args.runtime])} sessions in the last ${args.since}`);
+  const loaded = await loadAllTraces(process.cwd(), { ...args, all: true });
+  const { traces, mcpServers, sources } = loaded;
+  // a tool that is not installed is normal when both are looked for; one that cannot be read is worth saying
+  const notes = args.runtime === 'all' ? loaded.notes.filter((n) => !/not found at/.test(n)) : loaded.notes;
   const payload = buildGlobalPayload(traces, { since: args.since, sources, notes, mcpServers });
   const line = (s = '') => process.stdout.write(s + '\n');
   const subs = payload.rows.length - traces.length;
   const head = () => {
     line();
-    line(`  ◍  SkillMap global · ${runtimeLabel(sources)} · last ${args.since}`);
+    line(`  ◍  SkillMap global · ${runtimeLabel(sources.length ? sources : RUNTIMES[args.runtime])} · last ${args.since}`);
     line('  ' + '─'.repeat(56));
-    line(`     ${traces.length} sessions (+ ${subs} subagent) in ${new Set(traces.map((t) => t.directory)).size} projects`);
+    if (traces.length) line(`     ${traces.length} sessions (+ ${subs} subagent) in ${new Set(traces.map((t) => t.directory)).size} projects`);
+    else line(`     No ${runtimeLabel(RUNTIMES[args.runtime])} sessions yet in the last ${args.since}: the page opens empty and fills in as they appear.`);
     for (const n of notes) line(`     ! ${n}`);
     line();
   };
