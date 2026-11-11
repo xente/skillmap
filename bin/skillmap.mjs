@@ -185,7 +185,7 @@ async function globalReport(args) {
   if (!args.out) enableCache(); // served: later reloads only re-read the session files that changed
   const { traces, mcpServers, sources, notes } = await loadAllTraces(process.cwd(), { ...args, all: true });
   if (!traces.length) throw new Error(notes.length ? notes.join('; ') : `no ${runtimeLabel(RUNTIMES[args.runtime])} sessions in the last ${args.since}`);
-  const payload = buildGlobalPayload(traces, { since: args.since, sources, notes });
+  const payload = buildGlobalPayload(traces, { since: args.since, sources, notes, mcpServers });
   const line = (s = '') => process.stdout.write(s + '\n');
   const subs = payload.rows.length - traces.length;
   const head = () => {

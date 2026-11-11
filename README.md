@@ -437,8 +437,8 @@ node bin/skillmap.mjs --global -o global.html   # a static page, without the ses
 ```
 
 One page for all the sessions of all your projects (Claude Code and OpenCode),
-instead of one folder. A sidebar has four sections (`#overview`, `#sessions`,
-`#projects`, `#usage`), and the period and filters at the top apply to all of
+instead of one folder. A sidebar has six sections (`#overview`, `#sessions`,
+`#projects`, `#usage`, `#insights`, `#alerts`), and the period and filters at the top apply to all of
 them:
 
 - **Overview**: tokens and cost per day, split by project, editor/client, model
@@ -451,7 +451,26 @@ them:
   how many skills and agents it defines and its last activity.
 - **Skills & MCP**: skills, subagent types and MCP servers used across the
   sessions on screen, one list at a time: calls, errors, sessions, projects, last
-  use and, for skills, the description from their `SKILL.md`.
+  use and, for skills, the description from their `SKILL.md`. A row opens a
+  panel with its tools, projects, recent sessions and, for a skill, the
+  `SKILL.md`. An **Unused** list sets what is installed (home skill folders,
+  project skills, enabled MCP servers) against what was called.
+- **Insights**: patterns across projects: where sessions end in error or are
+  aborted, MCP servers that fail often, little cache reuse, subagents carrying
+  the cost, one project or model taking most of the spend, sessions never
+  finished, and unused skills.
+
+The Overview cards show the change against the previous period of the same
+length (the previous period must be loaded: start with a larger `--since`), and
+the **Alerts** section holds cost limits and the alerts they raise. A limit covers
+everything or one project, model, agent or editor, over a day, the last 7 days,
+this month, or per session (so a $200-a-week project and a $20-a-week one can
+both be watched). The same section flags unusually costly sessions and spending
+spikes, and the amounts below which those checks stay quiet can be raised to
+fit your usual costs. Its sidebar entry shows how many alerts there are. The period button
+opens a calendar with from/to times and quick ranges (last hour to this month,
+or everything loaded); `?range=6h`, `?range=3d` and the like also work. A session that is working now is marked
+RUNNING and listed first, and the page refreshes by itself.
 
 It is served on localhost, like `--watch`. Open a session or a project and the
 server builds that project's report on the spot (it scans the folder the first
@@ -461,6 +480,10 @@ timeline. A project opens the full report: diagram, hierarchy, insights and
 runtime. "Open in a tab" gives the same page on its own, and
 `<page>#session=<id>` and `<page>#project=<folder>` open one directly. The static page from `-o` has
 neither, only the totals.
+
+The limits, the period and the theme are saved in `~/.skillmap/settings.json`
+(only when the page is served, not in a `-o` file), so they survive a restart,
+another port or another browser. Delete the file to reset them.
 
 The editor/client comes from Claude Code's `entrypoint` (terminal, VS Code…).
 OpenCode doesn't record it, so its sessions show as "OpenCode". A session counts

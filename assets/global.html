@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>SkillMap — Global</title>
-<script>try { const t = localStorage.getItem('skillmap-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch { /* storage blocked: follow the system */ }</script>
+<script>try { const t = localStorage.getItem('skillmap-theme'); if (!document.documentElement.dataset.theme && (t === 'light' || t === 'dark')) document.documentElement.dataset.theme = t; } catch { /* storage blocked: follow the system */ }</script>
 <style>
 :root{
   color-scheme:dark; scrollbar-color:var(--line2) transparent;
@@ -50,8 +50,65 @@ main{padding:18px 20px 40px; max-width:1280px; margin:0 auto}
 .card{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin-bottom:16px}
 .card h2{font-size:13px; margin:0 0 10px; font-weight:650; color:var(--tx2); text-transform:uppercase; letter-spacing:.04em}
 .controls{display:flex; flex-wrap:wrap; gap:8px 18px; align-items:center; margin-bottom:10px}
-.rangein{width:74px; background:var(--panel2); color:var(--tx); border:1px solid var(--line2); border-radius:9px; padding:6px 9px; font:inherit; font-size:12.5px}
-.rangein[aria-invalid="true"]{border-color:var(--bad,#e5484d)}
+.delta{font-size:11.5px; font-weight:650; margin-left:6px; white-space:nowrap}
+.delta.good{color:var(--b-ok)} .delta.bad{color:var(--b-warn)} .delta.flat{color:var(--tx2)}
+.alert{display:flex; gap:12px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line)}
+.alert:first-of-type{border-top:0}
+.alert .body{flex:1; min-width:0}
+.alert .ttl{font-weight:650}
+.alert .dt{color:var(--tx2); font-size:12.5px; margin-top:2px}
+.alert button.go{background:var(--panel2); color:var(--tx); border:1px solid var(--line2); border-radius:8px; padding:5px 10px; font:inherit; font-size:12px; font-weight:600; cursor:pointer; white-space:nowrap}
+.alert button.go:hover{border-color:var(--accent)}
+.limits{display:flex; flex-direction:column; gap:2px; margin-bottom:12px}
+.limit{display:grid; grid-template-columns:minmax(160px,1fr) minmax(200px,1.4fr) 32px; gap:12px; align-items:center; padding:9px 0; border-top:1px solid var(--line)}
+.limit:first-child{border-top:0}
+.limit .spent{font-size:12.5px; color:var(--tx2)}
+.limit .meter{height:8px; border-radius:4px; background:var(--line); overflow:hidden; margin-top:5px}
+.limit .meter i{display:block; height:100%; border-radius:4px}
+.addlimit{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:8px}
+.addlimit select,.addlimit input{background:var(--panel2); color:var(--tx); border:1px solid var(--line2); border-radius:8px; padding:6px 9px; font:inherit; font-size:13px}
+.addlimit select[hidden]{display:none}
+.addlimit input{width:110px}
+.addlimit button.go{background:var(--accent); color:#fff; border:1px solid var(--accent); border-radius:8px; padding:7px 14px; font:inherit; font-size:13px; font-weight:600; cursor:pointer}
+@media (max-width:760px){.limit{grid-template-columns:1fr 32px}.limit>div:nth-child(2){grid-column:1 / -1; order:3}}
+.budget{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; margin-bottom:6px}
+.budget label{display:block; font-size:12px; color:var(--tx2); margin-bottom:4px}
+.budget input{width:92px; background:var(--panel2); color:var(--tx); border:1px solid var(--line2); border-radius:8px; padding:5px 8px; font:inherit; font-size:13px}
+.budget .meter{height:8px; border-radius:4px; background:var(--line); overflow:hidden; margin-top:6px}
+.budget .meter i{display:block; height:100%; border-radius:4px}
+.budget .spent{font-size:12.5px; color:var(--tx2); margin-top:4px}
+.rangebtn{display:inline-flex; align-items:center; gap:9px; background:var(--panel2); color:var(--tx); border:1px solid var(--line2); border-radius:10px; padding:7px 13px; font:inherit; font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap}
+.rangebtn:hover,.rangebtn[aria-expanded="true"]{border-color:var(--accent)}
+.rangebtn svg{width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; color:var(--tx2)}
+.rangepop{position:fixed; z-index:40; display:grid; grid-template-columns:minmax(0,auto) 170px; background:var(--panel); border:1px solid var(--line2); border-radius:14px; box-shadow:0 18px 60px rgba(0,0,0,.45); max-height:calc(100vh - 80px); overflow:auto}
+.rangepop[hidden]{display:none}
+.rangepop .cal{padding:16px 18px 12px}
+.rangepop .months{display:flex; gap:28px}
+.rangepop .mon{width:252px}
+.rangepop .mh{display:grid; grid-template-columns:30px 1fr 30px; align-items:center; text-align:center; font-weight:650; margin-bottom:8px}
+.rangepop .mh button{background:transparent; color:var(--tx2); border:0; border-radius:8px; height:28px; font-size:18px; cursor:pointer}
+.rangepop .mh button:hover{background:var(--panel2); color:var(--tx)}
+.rangepop .wd,.rangepop .days{display:grid; grid-template-columns:repeat(7,1fr); text-align:center}
+.rangepop .wd span{font-size:12px; color:var(--tx2); padding:4px 0}
+.rangepop .cd{background:transparent; color:var(--tx); border:0; border-radius:8px; height:34px; font:inherit; font-size:13.5px; cursor:pointer}
+.rangepop .cd.out{color:var(--tx3); opacity:.55}
+.rangepop .cd:hover:not(:disabled){background:var(--panel2)}
+.rangepop .cd:disabled{opacity:.3; cursor:default}
+.rangepop .cd.in{background:color-mix(in srgb,var(--accent) 16%,transparent); border-radius:0}
+.rangepop .cd.edge{background:color-mix(in srgb,var(--accent) 38%,var(--panel2)); font-weight:700; box-shadow:inset 0 0 0 1px var(--accent)}
+.rangepop .cd.today{text-decoration:underline; text-underline-offset:3px}
+.rangepop .times{display:flex; flex-wrap:wrap; gap:18px 30px; margin-top:12px}
+.rangepop .times .lbl{display:block; margin-bottom:5px; font-size:12.5px; color:var(--tx2)}
+.rangepop .times select{background:var(--panel2); color:var(--tx); border:1px solid var(--line2); border-radius:8px; padding:6px 8px; font:inherit; font-size:13px}
+.rangepop .foot{display:flex; align-items:center; gap:10px; justify-content:flex-end; margin-top:14px; padding-top:12px; border-top:1px solid var(--line)}
+.rangepop .foot .err{margin-right:auto; color:var(--b-bad); font-size:12.5px}
+.rangepop .foot button{background:var(--panel2); color:var(--tx); border:1px solid var(--line2); border-radius:9px; padding:7px 14px; font:inherit; font-size:13px; font-weight:600; cursor:pointer}
+.rangepop .foot button.primary{background:var(--accent); border-color:var(--accent); color:#fff}
+.rangepop .presets{border-left:1px solid var(--line); padding:12px 8px; display:flex; flex-direction:column; gap:2px}
+.rangepop .presets button{background:transparent; color:var(--tx); border:0; border-radius:8px; padding:9px 10px; font:inherit; font-size:13.5px; text-align:center; cursor:pointer}
+.rangepop .presets button:hover{background:var(--panel2)}
+.rangepop .presets button[aria-current="true"]{background:color-mix(in srgb,var(--accent) 18%,transparent); font-weight:700}
+@media (max-width:760px){.rangepop{grid-template-columns:1fr; left:8px; right:8px; width:auto}.rangepop .months{flex-direction:column; gap:12px}.rangepop .mon{width:100%}.rangepop .presets{border-left:0; border-top:1px solid var(--line); flex-direction:row; flex-wrap:wrap}}
 .seg{display:inline-flex; border:1px solid var(--line2); border-radius:9px; overflow:hidden}
 .seg button{background:transparent; color:var(--tx2); border:0; padding:6px 12px; font:inherit; font-size:12.5px; font-weight:600; cursor:pointer}
 .seg button+button{border-left:1px solid var(--line2)}
@@ -264,8 +321,7 @@ nav#nav .n{font-size:11px; font-weight:700; color:var(--tx3); background:var(--b
   <div class="controls" style="margin:0 0 0 auto">
     <button type="button" class="close" id="themeBtn" aria-label="Switch between light and dark theme" title="Switch theme" style="padding:6px 10px"></button>
     <span class="lbl">Period</span>
-    <div class="seg" id="range" role="group" aria-label="Period"></div>
-    <input id="rangeCustom" class="rangein" type="text" inputmode="text" autocomplete="off" spellcheck="false" placeholder="e.g. 3h" aria-label="Custom period: a number and m, h or d" title="Custom period: 45m, 3h, 2d…  Enter to apply">
+    <button type="button" class="rangebtn" id="rangeBtn" aria-haspopup="dialog" aria-expanded="false" aria-controls="rangePop"></button>
   </div>
 </header>
 <div id="filters">
@@ -284,6 +340,7 @@ nav#nav .n{font-size:11px; font-weight:700; color:var(--tx3); background:var(--b
   <div class="flowbar"><b id="flowTitle"></b><button class="close" type="button" id="flowReload">Reload</button><a id="flowOpen" target="_blank" rel="noopener">Open in a tab ↗</a><button class="close" type="button" id="flowBack" aria-label="Close the session">✕</button></div>
   <div class="flowbody"><div class="loading" id="flowLoad"></div><iframe id="flowFrame" title="Session detail" src="about:blank"></iframe></div>
 </dialog>
+<div id="rangePop" class="rangepop" role="dialog" aria-label="Choose a period" hidden></div>
 <dialog id="item" aria-label="Detail" tabindex="-1">
   <div class="flowbar"><b id="itemTitle"></b><button class="close" type="button" id="itemClose" aria-label="Close the detail">✕</button></div>
   <div class="itembody" id="itemBody"></div>
@@ -307,6 +364,7 @@ const ICONS = {
   dollar: '<svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>',
   clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
   map: '<svg viewBox="0 0 24 24"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z"/><path d="M9 4v14M15 6v14"/></svg>',
+  cal: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
 };
 const IC = {
   clock: '<svg class="ico dim" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
@@ -328,6 +386,7 @@ $('#themeBtn').onclick = () => {
   const next = effTheme() === 'light' ? 'dark' : 'light';
   document.documentElement.dataset.theme = next;
   try { localStorage.setItem('skillmap-theme', next); } catch { /* not remembered */ }
+  saveSettings({ theme: next });
   render();
 };
 matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => { if (!document.documentElement.dataset.theme) render(); });
@@ -360,14 +419,28 @@ const GROUPS = {
   agent: { label: 'Agent', key: (r) => r.agent || (r.parent ? 'subagent' : 'main') },
 };
 const MIN = 60000, HOUR = 3600000;
-const RANGES = ['30m', '1h', '6h', '24h', '7d', '30d', 'all'];
 const RANGE_RE = /^(\d+)\s*([mhd])$/i;
-const validRange = (k) => k === 'all' || (RANGE_RE.test(k) && Number(RANGE_RE.exec(k)[1]) > 0);
-const rangeLabel = (k) => (k === 'all' ? 'All loaded' : 'Last ' + k);
+const ABS_RE = /^abs:(\d+):(\d+|now)$/; // a window picked on the calendar: from, to (or now, still moving)
+const validRange = (k) => k === 'all' || ABS_RE.test(k) || (RANGE_RE.test(k) && Number(RANGE_RE.exec(k)[1]) > 0);
+const isAbs = () => ABS_RE.test(st.range);
+const PRESETS = [['1h', 'Last hour'], ['6h', 'Last 6 hours'], ['24h', 'Last 24 hours'], ['7d', 'Last 7 days'], ['30d', 'Last 30 days'], ['1d', 'Today'], ['week', 'This week'], ['month', 'This month'], ['all', 'All loaded']];
+// This week and This month are windows from their start until now
+function presetValue(k) {
+  const d = new Date(); d.setHours(0, 0, 0, 0);
+  if (k === 'week') { d.setDate(d.getDate() - d.getDay()); return `abs:${d.getTime()}:now`; }
+  if (k === 'month') { d.setDate(1); return `abs:${d.getTime()}:now`; }
+  return k;
+}
 
-const VIEWS = [['overview', 'Overview'], ['sessions', 'Sessions'], ['projects', 'Projects'], ['usage', 'Skills & MCP']];
+const VIEWS = [['overview', 'Overview'], ['sessions', 'Sessions'], ['projects', 'Projects'], ['usage', 'Skills & MCP'], ['insights', 'Insights'], ['alerts', 'Alerts']];
 const viewFromHash = () => { const v = location.hash.slice(1); return VIEWS.some(([k]) => k === v) ? v : 'overview'; };
-const st = { view: viewFromHash(), metric: 'cost', group: 'project', range: (() => { try { const k = new URLSearchParams(location.search).get('range') || localStorage.getItem('skillmap-range'); if (k && validRange(k)) return k; } catch { /* not remembered */ } return '30d'; })(), client: '', project: '', q: '', sort: 'start', psort: 'last', plimit: 25, page: 0, usage: 'skills', usageLimit: 25 };
+// served: the settings also go to the server's file, so a new port or browser keeps them
+function saveSettings(patch) {
+  if (!DATA.live) return;
+  DATA.settings = { ...(DATA.settings || {}), ...patch };
+  fetch('settings', { method: 'POST', headers: { 'content-type': 'application/json', 'x-skillmap': '1' }, body: JSON.stringify(patch) }).catch(() => { /* the server is gone: the browser copy remains */ });
+}
+const st = { view: viewFromHash(), metric: 'cost', group: 'project', range: (() => { try { const k = presetValue(new URLSearchParams(location.search).get('range') || (DATA.live && DATA.settings?.range) || localStorage.getItem('skillmap-range') || ''); if (k && validRange(k)) return k; } catch { /* not remembered */ } return '30d'; })(), client: '', project: '', q: '', sort: 'start', psort: 'last', plimit: 25, page: 0, usage: 'skills', usageLimit: 25 };
 const dayStart = (t) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
 // a calendar day later: days are 23 or 25 hours long when the clocks change
 const addDays = (t, n) => { const d = new Date(t); d.setDate(d.getDate() + n); return d.getTime(); };
@@ -377,11 +450,14 @@ const dayLabel = (t) => new Date(t).toLocaleDateString(undefined, { month: 'shor
 
 // minutes and hours are a rolling window ending now; days are calendar days, today included
 function rangeFrom() {
+  const a = ABS_RE.exec(st.range);
+  if (a) return Number(a[1]);
   const m = RANGE_RE.exec(st.range);
   if (!m) return 0;
   const n = Number(m[1]), unit = m[2].toLowerCase();
   return unit === 'd' ? addDays(dayStart(Date.now()), -(n - 1)) : Date.now() - n * (unit === 'h' ? HOUR : MIN);
 }
+const rangeTo = () => { const a = ABS_RE.exec(st.range); return a && a[2] !== 'now' ? Number(a[2]) : Date.now(); };
 // chart buckets: a short window is cut finer than a day
 const DAY_GRAIN = { unit: 'day', floor: dayStart, next: (t) => addDays(t, 1), label: dayLabel, full: dayLabel };
 const timeOf = (t) => new Date(t).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
@@ -390,26 +466,51 @@ const HOUR_GRAIN = { unit: 'hour', floor: (t) => { const d = new Date(t); d.setM
 const FIVE_GRAIN = { unit: '5 min', floor: (t) => Math.floor(t / (5 * MIN)) * 5 * MIN, next: (t) => t + 5 * MIN, label: timeOf, full: dayTime };
 function grainOf() {
   const m = RANGE_RE.exec(st.range);
-  if (!m || m[2].toLowerCase() === 'd') return DAY_GRAIN;
-  const ms = Number(m[1]) * (m[2].toLowerCase() === 'h' ? HOUR : MIN);
+  if (!isAbs() && (!m || m[2].toLowerCase() === 'd')) return DAY_GRAIN;
+  const ms = isAbs() ? rangeTo() - rangeFrom() : Number(m[1]) * (m[2].toLowerCase() === 'h' ? HOUR : MIN);
   return ms <= 3 * HOUR ? FIVE_GRAIN : ms <= 48 * HOUR ? HOUR_GRAIN : DAY_GRAIN;
 }
 function periodRows() {
-  const from = rangeFrom();
-  // a session that began earlier but is working now still belongs in a short period
-  return DATA.rows.filter((r) => r.start >= from || isRunning(r));
+  const from = rangeFrom(), to = rangeTo();
+  // a session that began earlier but is working now still belongs in a period that reaches the present
+  const open = !isAbs() || ABS_RE.exec(st.range)[2] === 'now';
+  return DATA.rows.filter((r) => (r.start >= from && r.start <= to) || (open && isRunning(r)));
 }
+// the period before this one, same length: the comparison for the cards
+const ageOf = (k) => { const m = RANGE_RE.exec(k); return m ? Number(m[1]) * { m: MIN, h: HOUR, d: 86400000 }[m[2].toLowerCase()] : 0; };
+function prevWindow() {
+  const m = RANGE_RE.exec(st.range);
+  if (!m && !isAbs()) return null;
+  const from = rangeFrom();
+  const n = m ? Number(m[1]) : 0, unit = m ? m[2].toLowerCase() : '';
+  const prevFrom = isAbs() ? from - (rangeTo() - from) : unit === 'd' ? addDays(from, -n) : from - n * (unit === 'h' ? HOUR : MIN);
+  const loadedFrom = new Date(DATA.generatedAt).getTime() - ageOf(DATA.since);
+  return { from: prevFrom, to: from, covered: prevFrom >= loadedFrom, needs: Math.ceil((Date.now() - prevFrom) / 86400000) };
+}
+const totalsOf = (rows) => {
+  const top = rows.filter((r) => !r.parent);
+  return { sessions: top.length, tokens: rows.reduce((n, r) => n + tokAll(r.tokens), 0), cost: rows.reduce((n, r) => n + r.cost, 0), ms: rows.reduce((n, r) => n + r.activeMs, 0) };
+};
+// ▲/▼ with the change; for cost and tokens a rise is the bad direction
+function deltaOf(cur, prev, { upIsBad = true, label = '' } = {}) {
+  if (prev == null) return '';
+  if (!prev) return cur ? `<span class="delta flat" title="Nothing in the previous period">new</span>` : '';
+  const pct = ((cur - prev) / prev) * 100;
+  if (Math.abs(pct) < 1) return `<span class="delta flat" title="vs the previous period${label}">= 0%</span>`;
+  const up = pct > 0, cls = upIsBad === null ? 'flat' : up === upIsBad ? 'bad' : 'good';
+  return `<span class="delta ${cls}" title="vs the previous period${label}">${up ? '▲' : '▼'} ${Math.abs(pct) >= 100 ? Math.round(Math.abs(pct)) : Math.abs(pct).toFixed(0)}%</span>`;
+}
+const median = (a) => { const v = [...a].sort((x, y) => x - y); return v.length ? (v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2) : 0; };
+
 // a subagent session follows its parent's client and project filters
 let sessionIndex = new Map(DATA.rows.map((r) => [r.id, r]));
 const rootOf = (r) => { while (r.parent && sessionIndex.has(r.parent)) r = sessionIndex.get(r.parent); return r; };
 const haystack = (r) => [r.title, r.model, r.agent, r.directory].join(' ').toLowerCase();
-function visibleRows() {
-  const q = st.q.trim().toLowerCase();
-  return periodRows().filter((r) => {
-    const root = rootOf(r);
-    return (!st.client || clientOf(root) === st.client) && (!st.project || root.directory === st.project) && (!q || haystack(r).includes(q) || haystack(root).includes(q));
-  });
+function passes(r) {
+  const q = st.q.trim().toLowerCase(), root = rootOf(r);
+  return (!st.client || clientOf(root) === st.client) && (!st.project || root.directory === st.project) && (!q || haystack(r).includes(q) || haystack(root).includes(q));
 }
+const visibleRows = () => periodRows().filter(passes);
 
 function fillSelect(el, key, entries, all) {
   el.innerHTML = `<option value="">${esc(all)}</option>` + entries.map(([v, label]) => `<option value="${esc(v)}"${st[key] === v ? ' selected' : ''}>${esc(label)}</option>`).join('');
@@ -422,16 +523,109 @@ function renderFilters() {
   for (const r of rows) dirs.set(r.directory, projectOf(r));
   fillSelect($('#fProject'), 'project', [...dirs].sort((a, b) => a[1].localeCompare(b[1])), 'All projects');
 }
-$('#rangeCustom').onchange = (e) => {
-  const k = e.target.value.trim().toLowerCase().replace(/\s+/g, '');
-  if (!k) return render();
-  const ok = validRange(k);
-  e.target.setAttribute('aria-invalid', String(!ok));
-  if (!ok) return;
+// ---------- period picker: calendar, times and quick ranges ----------
+const fmtDT = (t) => new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+const tzName = () => new Date().toLocaleTimeString(undefined, { timeZoneName: 'short' }).split(' ').pop();
+function paintRangeBtn() {
+  const text = st.range === 'all' ? 'All loaded' : `${fmtDT(rangeFrom())} – ${fmtDT(rangeTo())} · ${tzName()}`;
+  $('#rangeBtn').innerHTML = `${ICONS.cal}<span>${esc(text)}</span>`;
+}
+const pop = { open: false, touched: false, view: 0, a: null, b: null, hover: null, from: { h: 12, m: 0, ap: 'AM' }, to: { h: 11, m: 59, ap: 'PM' }, err: '' };
+const split12 = (t) => { const d = new Date(t); return { h: d.getHours() % 12 || 12, m: d.getMinutes(), ap: d.getHours() < 12 ? 'AM' : 'PM' }; };
+const join12 = (day, t) => { const d = new Date(day); d.setHours((t.h % 12) + (t.ap === 'PM' ? 12 : 0), t.m, 0, 0); return d.getTime(); };
+const monthStart = (t, n = 0) => { const d = new Date(t); return new Date(d.getFullYear(), d.getMonth() + n, 1).getTime(); };
+const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+function monthHtml(first, nav) {
+  const d0 = new Date(first), y = d0.getFullYear(), mo = d0.getMonth();
+  const lead = new Date(y, mo, 1).getDay(), count = new Date(y, mo + 1, 0).getDate(), weeks = Math.ceil((lead + count) / 7);
+  const lo = pop.a == null ? null : Math.min(pop.a, pop.b ?? pop.hover ?? pop.a), hi = pop.a == null ? null : Math.max(pop.a, pop.b ?? pop.hover ?? pop.a);
+  const today = dayStart(Date.now());
+  let cells = '';
+  for (let i = 0; i < weeks * 7; i++) {
+    const d = new Date(y, mo, 1 - lead + i), t = d.getTime(), out = d.getMonth() !== mo;
+    const cls = [out ? 'out' : '', !out && lo != null && (t === lo || t === hi) ? 'edge' : '', !out && lo != null && t > lo && t < hi ? 'in' : '', t === today ? 'today' : ''].filter(Boolean).join(' ');
+    cells += `<button type="button" class="cd ${cls}" data-t="${t}" ${t > today ? 'disabled' : ''}${t === lo || t === hi ? ' aria-pressed="true"' : ''}>${d.getDate()}</button>`;
+  }
+  return `<div class="mon"><div class="mh">${nav === 'prev' ? '<button type="button" data-nav="-1" aria-label="Previous month">‹</button>' : '<span></span>'}<span>${esc(d0.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }))}</span>${nav === 'next' ? '<button type="button" data-nav="1" aria-label="Next month">›</button>' : '<span></span>'}</div>
+    <div class="wd">${WEEKDAYS.map((w) => `<span>${w}</span>`).join('')}</div><div class="days">${cells}</div></div>`;
+}
+const drawMonths = () => { $('#popMonths').innerHTML = monthHtml(pop.view, 'prev') + monthHtml(monthStart(pop.view, 1), 'next'); };
+const timeSelects = (key, t) => `<span><select data-t="${key}" data-f="h" aria-label="${key} hour">${Array.from({ length: 12 }, (_, i) => `<option ${t.h === i + 1 ? 'selected' : ''}>${String(i + 1).padStart(2, '0')}</option>`).join('')}</select>
+  : <select data-t="${key}" data-f="m" aria-label="${key} minute">${Array.from({ length: 60 }, (_, i) => `<option ${t.m === i ? 'selected' : ''}>${String(i).padStart(2, '0')}</option>`).join('')}</select>
+  <select data-t="${key}" data-f="ap" aria-label="${key} AM or PM">${['AM', 'PM'].map((a) => `<option ${t.ap === a ? 'selected' : ''}>${a}</option>`).join('')}</select></span>`;
+function drawPop() {
+  const el = $('#rangePop');
+  el.innerHTML = `<div class="cal"><div class="months" id="popMonths"></div>
+      <div class="times"><div><span class="lbl">From time</span>${timeSelects('from', pop.from)}</div><div><span class="lbl">To time</span>${timeSelects('to', pop.to)}</div></div>
+      <div class="foot"><span class="err" role="alert">${esc(pop.err)}</span><button type="button" id="popCancel">Cancel</button><button type="button" class="primary" id="popApply">Apply</button></div></div>
+    <div class="presets">${PRESETS.map(([k, label]) => `<button type="button" data-preset="${k}" ${st.range === presetValue(k) ? 'aria-current="true"' : ''}>${label}</button>`).join('')}</div>`;
+  drawMonths();
+}
+function placePop() {
+  const r = $('#rangeBtn').getBoundingClientRect(), el = $('#rangePop');
+  el.style.top = r.bottom + 8 + 'px';
+  el.style.right = Math.max(8, innerWidth - r.right) + 'px';
+}
+function openPop() {
+  const from = st.range === 'all' ? Math.min(...DATA.rows.map((r) => r.start), Date.now()) : rangeFrom(), to = rangeTo();
+  Object.assign(pop, { open: true, touched: false, a: dayStart(from), b: dayStart(to), hover: null, from: split12(from), to: split12(to), err: '', view: monthStart(to, -1) });
+  drawPop();
+  placePop();
+  $('#rangePop').hidden = false;
+  $('#rangeBtn').setAttribute('aria-expanded', 'true');
+}
+function closePop() {
+  pop.open = false;
+  $('#rangePop').hidden = true;
+  $('#rangeBtn').setAttribute('aria-expanded', 'false');
+}
+function setRange(k) {
   st.range = k; st.page = 0;
   try { localStorage.setItem('skillmap-range', k); } catch { /* not remembered */ }
+  saveSettings({ range: k });
+  closePop();
   render();
-};
+}
+$('#rangeBtn').onclick = () => (pop.open ? closePop() : openPop());
+$('#rangePop').addEventListener('click', (e) => {
+  const day = e.target.closest('.cd'), nav = e.target.closest('[data-nav]'), pre = e.target.closest('[data-preset]');
+  if (day) {
+    const t = Number(day.dataset.t);
+    if (pop.a == null || pop.b != null) { pop.a = t; pop.b = null; pop.hover = null; } else { pop.b = t; }
+    if (pop.b != null && pop.b < pop.a) [pop.a, pop.b] = [pop.b, pop.a];
+    // whole days unless the times were set by hand
+    if (pop.b != null && !pop.touched) { pop.from = { h: 12, m: 0, ap: 'AM' }; pop.to = { h: 11, m: 59, ap: 'PM' }; drawPop(); }
+    pop.err = '';
+    drawMonths();
+  } else if (nav) {
+    pop.view = monthStart(pop.view, Number(nav.dataset.nav));
+    drawMonths();
+  } else if (pre) {
+    setRange(presetValue(pre.dataset.preset));
+  } else if (e.target.id === 'popCancel') {
+    closePop();
+  } else if (e.target.id === 'popApply') {
+    const lo = pop.a, hi = pop.b ?? pop.a;
+    const from = join12(Math.min(lo, hi), pop.from), to = join12(Math.max(lo, hi), pop.to);
+    if (!(from < to)) { pop.err = 'The start must be before the end.'; $('#rangePop .err').textContent = pop.err; return; }
+    setRange(`abs:${from}:${to >= Date.now() - MIN ? 'now' : to}`);
+  }
+});
+$('#rangePop').addEventListener('mouseover', (e) => {
+  const day = e.target.closest('.cd');
+  if (!day || pop.a == null || pop.b != null) return;
+  const t = Number(day.dataset.t);
+  if (pop.hover !== t) { pop.hover = t; drawMonths(); }
+});
+$('#rangePop').addEventListener('change', (e) => {
+  const sel = e.target.closest('select[data-t]');
+  if (sel) pop.touched = true;
+  if (sel) pop[sel.dataset.t][sel.dataset.f] = sel.dataset.f === 'ap' ? sel.value : Number(sel.value);
+});
+document.addEventListener('mousedown', (e) => { if (pop.open && !e.target.closest('#rangePop, #rangeBtn')) closePop(); });
+document.addEventListener('keydown', (e) => { if (pop.open && e.key === 'Escape') { closePop(); $('#rangeBtn').focus(); } });
+addEventListener('resize', () => { if (pop.open) placePop(); });
 $('#fSearch').oninput = (e) => { st.q = e.target.value; st.page = 0; render(); };
 
 function seg(el, options, key) {
@@ -444,15 +638,14 @@ function render() {
   const M = METRICS[st.metric], G = GROUPS[st.group];
   $('#sub').textContent = `${[...new Set(DATA.rows.map((r) => RUNTIME[r.runtime]))].join(' + ') || 'no sessions'} · sessions of the last ${DATA.since} · generated ${new Date(DATA.generatedAt).toLocaleString()}`;
   paintThemeBtn();
-  seg($('#range'), (RANGES.includes(st.range) ? RANGES : [...RANGES.slice(0, -1), st.range, 'all']).map((k) => [k, rangeLabel(k)]), 'range');
-  $('#rangeCustom').value = RANGES.includes(st.range) ? '' : st.range;
+  paintRangeBtn();
   renderFilters();
 
   const main = $('#main');
   const top = rows.filter((r) => !r.parent);
   const live = top.filter(isRunning).length;
   $('#count').textContent = `${top.length} session${top.length === 1 ? '' : 's'}${live ? ` · ${live} running` : ''}`;
-  const counts = { sessions: top.length, projects: new Set(top.map((r) => r.directory)).size };
+  const counts = { sessions: top.length, projects: new Set(top.map((r) => r.directory)).size, alerts: alertsOf(rows).length || null };
   $('#nav').innerHTML = VIEWS.map(([k, label]) => `<a href="#${k}" ${st.view === k ? 'aria-current="page"' : ''}>${label}${counts[k] != null ? `<span class="n">${counts[k]}</span>` : ''}</a>`).join('');
   if (!rows.length) { main.innerHTML = '<div class="empty">No sessions match.</div>'; return; }
 
@@ -478,7 +671,7 @@ function render() {
     m.set(b, (m.get(b) || 0) + M.val(r));
     byDay.set(d, m);
   }
-  const first = grain === DAY_GRAIN ? Math.min(...byDay.keys()) : grain.floor(rangeFrom()), last = grain.floor(Date.now());
+  const first = grain === DAY_GRAIN && !isAbs() ? Math.min(...byDay.keys()) : grain.floor(rangeFrom()), last = grain.floor(rangeTo());
   const days = [];
   for (let d = first; d <= last; d = grain.next(d)) days.push(d);
   const order = [...shown, 'Other'];
@@ -490,15 +683,20 @@ function render() {
   const bySessions = new Map();
   for (const r of top) bySessions.set(projectOf(r), (bySessions.get(projectOf(r)) || 0) + 1);
   const busiest = [...bySessions].sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+  const pw = prevWindow();
+  const prev = pw?.covered ? totalsOf(DATA.rows.filter((r) => r.start >= pw.from && r.start < pw.to && passes(r))) : null;
+  const cur = totalsOf(rows);
+  const vsNote = !pw ? '' : prev ? `<p class="note" style="margin:-6px 0 14px">▲▼ compare with the previous period (${esc(dayLabel(pw.from))} – ${esc(dayLabel(pw.to))}). For cost and tokens a rise is flagged.</p>` : `<p class="note" style="margin:-6px 0 14px">No comparison: the previous period is not loaded. Start with <code>--since ${pw.needs}d</code> to see it.</p>`;
   const overview = `
     <div class="pagehead"><h2>Overview <span>Cost and tokens</span></h2><p>Across every project in the selection.</p></div>
     <div class="kpis2">
-      <div class="kpi2"><div class="top">Sessions ${ICONS.pulse.replace('<svg','<svg style="color:var(--k-sessions)"')}</div><div class="val" style="color:var(--k-sessions)">${top.length}</div><div class="sub">${perDay} per ${per}${rows.length > top.length ? ` · +${rows.length - top.length} subagent` : ''}</div></div>
-      <div class="kpi2"><div class="top">Total tokens ${ICONS.layers.replace('<svg','<svg style="color:var(--k-tokens)"')}</div><div class="val" style="color:var(--k-tokens)">${fmtTok(tokSum)}</div><div class="sub">Cache reads ${fmtTok(total.cacheRead)}</div></div>
-      <div class="kpi2"><div class="top">Total cost ${ICONS.dollar.replace('<svg','<svg style="color:var(--k-cost)"')}</div><div class="val" style="color:var(--k-cost)">${est ? '≈' : ''}${fmtCost(total.cost)}</div><div class="sub">${est ? (rows.some((r) => !r.costEstimated && r.cost) ? 'Estimated + reported' : 'Estimated from list prices') : 'Reported by the runtime'}</div></div>
-      <div class="kpi2"><div class="top">Agent active time ${ICONS.clock.replace('<svg','<svg style="color:var(--k-time)"')}</div><div class="val" style="color:var(--k-time)">${fmtMs(total.ms)}</div><div class="sub">avg ${fmtMs(total.ms / Math.max(1, top.length))} per session</div></div>
+      <div class="kpi2"><div class="top">Sessions ${ICONS.pulse.replace('<svg','<svg style="color:var(--k-sessions)"')}</div><div class="val" style="color:var(--k-sessions)">${top.length}${prev ? deltaOf(cur.sessions, prev.sessions, { upIsBad: null }) : ''}</div><div class="sub">${perDay} per ${per}${rows.length > top.length ? ` · +${rows.length - top.length} subagent` : ''}</div></div>
+      <div class="kpi2"><div class="top">Total tokens ${ICONS.layers.replace('<svg','<svg style="color:var(--k-tokens)"')}</div><div class="val" style="color:var(--k-tokens)">${fmtTok(tokSum)}${prev ? deltaOf(cur.tokens, prev.tokens) : ''}</div><div class="sub">Cache reads ${fmtTok(total.cacheRead)}</div></div>
+      <div class="kpi2"><div class="top">Total cost ${ICONS.dollar.replace('<svg','<svg style="color:var(--k-cost)"')}</div><div class="val" style="color:var(--k-cost)">${est ? '≈' : ''}${fmtCost(total.cost)}${prev ? deltaOf(cur.cost, prev.cost) : ''}</div><div class="sub">${est ? (rows.some((r) => !r.costEstimated && r.cost) ? 'Estimated + reported' : 'Estimated from list prices') : 'Reported by the runtime'}</div></div>
+      <div class="kpi2"><div class="top">Agent active time ${ICONS.clock.replace('<svg','<svg style="color:var(--k-time)"')}</div><div class="val" style="color:var(--k-time)">${fmtMs(total.ms)}${prev ? deltaOf(cur.ms, prev.ms, { upIsBad: null }) : ''}</div><div class="sub">avg ${fmtMs(total.ms / Math.max(1, top.length))} per session</div></div>
       <div class="kpi2"><div class="top">Projects ${ICONS.map.replace('<svg','<svg style="color:var(--k-proj)"')}</div><div class="val" style="color:var(--k-proj)">${new Set(top.map(projectOf)).size}</div><div class="sub" title="${esc(busiest)}">Most active: ${esc(busiest)}</div></div>
     </div>
+    ${vsNote}
 
     <section class="card">
       <h2>${esc(M.label)} per ${per}, by ${esc(G.label.toLowerCase())}</h2>
@@ -539,6 +737,14 @@ function render() {
     main.innerHTML = `<div class="pagehead"><h2>Projects <span>Where the agents worked</span></h2><p>Open one for its map, insights and runtime.</p></div>
       <div id="projectsTable"></div>`;
     drawProjects(rows, top);
+  } else if (st.view === 'alerts') {
+    main.innerHTML = `<div class="pagehead"><h2>Alerts <span>Cost and budget</span></h2><p>Budgets, costly sessions and spending spikes in the selection.</p></div>
+      <section class="card" id="alerts"></section>`;
+    drawAlerts(rows);
+  } else if (st.view === 'insights') {
+    main.innerHTML = `<div class="pagehead"><h2>Insights <span>Across every project</span></h2><p>Patterns in the sessions on screen: what fails, what costs, what is installed and unused.</p></div>
+      <section class="card" id="insightsList"></section>`;
+    drawInsights(rows, top);
   } else if (st.view === 'usage') {
     main.innerHTML = `<div class="pagehead"><h2>Skills &amp; MCP <span>Agent activity</span></h2><p>What the agents called in the sessions on screen.</p></div>
       <div class="controls"><div class="seg" id="usageTab" role="group" aria-label="Kind"></div></div><div class="tablewrap" id="usageTable"></div>`;
@@ -549,6 +755,271 @@ function render() {
     seg($('#group'), Object.entries(GROUPS).map(([k, g]) => [k, g.label]), 'group');
     drawChart(days, byDay, order, color, max, M, grain);
   }
+}
+
+// ---------- alerts: cost limits per project, model, agent or client, and unusually costly sessions and days ----------
+const LIMIT_SCOPES = [['all', 'Everything'], ['project', 'Project'], ['model', 'Model'], ['agent', 'Agent'], ['client', 'Editor / client']];
+const LIMIT_PERIODS = [['day', 'Per day'], ['week', 'Last 7 days'], ['month', 'This month'], ['session', 'Per session']];
+const limits = (() => {
+  try {
+    const saved = (DATA.live && DATA.settings?.limits) || JSON.parse(localStorage.getItem('skillmap-limits') || 'null');
+    if (Array.isArray(saved)) return saved;
+    // the daily and weekly budget of an earlier version become limits on everything
+    const b = (DATA.live && DATA.settings?.budget) || JSON.parse(localStorage.getItem('skillmap-budget') || '{}');
+    return [['day', b.day], ['week', b.week]].filter(([, v]) => Number(v) > 0).map(([period, v]) => ({ id: 'old-' + period, scope: 'all', value: '', period, limit: Number(v) }));
+  } catch { return []; }
+})();
+const floors = (() => { try { const f = (DATA.live && DATA.settings?.floors) || JSON.parse(localStorage.getItem('skillmap-floors') || 'null') || {}; return { session: Number.isFinite(Number(f.session)) && f.session !== undefined ? Number(f.session) : 3, day: Number.isFinite(Number(f.day)) && f.day !== undefined ? Number(f.day) : 5 }; } catch { return { session: 3, day: 5 }; } })();
+function saveLimits() {
+  try { localStorage.setItem('skillmap-limits', JSON.stringify(limits)); localStorage.setItem('skillmap-floors', JSON.stringify(floors)); } catch { /* not remembered */ }
+  saveSettings({ limits, floors });
+}
+
+// does a session row count towards a limit?
+function inScope(l, r) {
+  const root = rootOf(r);
+  switch (l.scope) {
+    case 'all': return true;
+    case 'project': return root.directory === l.value;
+    case 'model': return (r.model || '(unknown)') === l.value;
+    case 'agent': return GROUPS.agent.key(r) === l.value;
+    case 'client': return clientOf(root) === l.value;
+    default: return false;
+  }
+}
+const scopeLabel = (l) => (l.scope === 'all' ? 'Everything' : l.scope === 'project' ? projectOf({ directory: l.value }) : l.scope === 'agent' ? `Agent ${l.value}` : l.value);
+const periodLabel = (p) => LIMIT_PERIODS.find(([k]) => k === p)[1].toLowerCase();
+const periodStart = (p) => (p === 'day' ? dayStart(Date.now()) : p === 'week' ? addDays(dayStart(Date.now()), -6) : monthStart(Date.now()));
+// what a limit has used so far: the total of its period, or the sessions over it
+function limitState(l) {
+  if (l.period === 'session') {
+    const fam = new Map();
+    for (const r of DATA.rows) if (inScope(l, r)) { const id = rootOf(r).id; fam.set(id, (fam.get(id) || 0) + r.cost); }
+    const over = [...fam].filter(([, c]) => c > l.limit).sort((a, b) => b[1] - a[1]);
+    return { over, spent: Math.max(0, ...fam.values()) };
+  }
+  const from = periodStart(l.period);
+  return { over: [], spent: DATA.rows.filter((r) => r.start >= from && inScope(l, r)).reduce((n, r) => n + r.cost, 0) };
+}
+// a way to see the sessions behind a limit
+const filterFor = (l) => ({ scope: l.scope, value: l.value });
+
+// a session with its subagents' cost added
+function familyCosts(rows) {
+  const m = new Map();
+  for (const r of rows) { const root = rootOf(r); m.set(root.id, (m.get(root.id) || 0) + r.cost); }
+  return m;
+}
+function alertsOf(rows) {
+  const out = [];
+  for (const l of limits) {
+    const { over, spent } = limitState(l), who = scopeLabel(l);
+    if (l.period === 'session') {
+      if (over.length) {
+        const t = sessionIndex.get(over[0][0]);
+        out.push({ sev: 'bad', title: `${who}: ${over.length} session${over.length === 1 ? '' : 's'} over ${fmtCost(l.limit)}`, detail: `The costliest: ${t?.title || over[0][0]} at ${fmtCost(over[0][1])}.`, go: { session: over[0][0] } });
+      }
+    } else if (spent > l.limit) {
+      out.push({ sev: 'bad', title: `${who}: limit exceeded, ${fmtCost(spent)} of ${fmtCost(l.limit)}`, detail: `${periodLabel(l.period)}; a session counts on the day it started.`, go: { filter: filterFor(l) } });
+    } else if (spent > l.limit * 0.8) {
+      out.push({ sev: 'warn', title: `${who}: close to the limit, ${fmtCost(spent)} of ${fmtCost(l.limit)}`, detail: `Over 80% already (${periodLabel(l.period)}).`, go: { filter: filterFor(l) } });
+    }
+  }
+
+  const fam = familyCosts(rows), costs = [...fam.values()].filter((c) => c > 0), med = median(costs);
+  const floor = Math.max(floors.session, med * 4);
+  const big = [...fam].filter(([, c]) => c >= floor && c > 0).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  for (const [id, c] of big) {
+    const t = sessionIndex.get(id);
+    out.push({ sev: 'warn', title: `Costly session: ${t?.title || id}`, detail: `${fmtCost(c)} with its subagents, ${med ? (c / med).toFixed(0) + '× the median session' : ''} · ${projectOf(t)}`, go: { session: id } });
+  }
+
+  const perDay = new Map();
+  for (const r of rows) perDay.set(dayStart(r.start), (perDay.get(dayStart(r.start)) || 0) + r.cost);
+  const dayMed = median([...perDay.values()].filter((c) => c > 0));
+  for (const [d, c] of [...perDay].sort((a, b) => b[1] - a[1]).slice(0, 3)) {
+    if (perDay.size >= 4 && c >= Math.max(floors.day, dayMed * 2.5) && c > 0) out.push({ sev: 'warn', title: `Spending spike on ${dayLabel(d)}: ${fmtCost(c)}`, detail: `${(c / dayMed).toFixed(1)}× a usual day (${fmtCost(dayMed)})`, go: { day: d } });
+  }
+  return out;
+}
+const SEV = { bad: ['bad', 'x'], warn: ['warn', 'warn'], info: ['run', 'dot'], ok: ['ok', 'check'] };
+const sevBadge = (sev) => { const [tone, icon] = SEV[sev]; return `<span class="badge ${tone} sm">${IC[icon]}${{ bad: 'Over', warn: 'Check', info: 'Info', ok: 'OK' }[sev]}</span>`; };
+
+// the values a limit can target, from the sessions loaded
+function scopeValues(scope) {
+  const rows = DATA.rows;
+  if (scope === 'project') { const m = new Map(); for (const r of rows) if (!r.parent) m.set(r.directory, projectOf(r)); return [...m].sort((a, b) => a[1].localeCompare(b[1])); }
+  const key = { model: (r) => r.model || '(unknown)', agent: (r) => GROUPS.agent.key(r), client: (r) => clientOf(rootOf(r)) }[scope];
+  return key ? [...new Set(rows.map(key))].sort().map((v) => [v, v]) : [];
+}
+function drawAlerts(rows) {
+  const el = $('#alerts');
+  if (!el) return;
+  const list = alertsOf(rows);
+  const meter = (spent, limit) => { const p = limit ? Math.min(100, (spent / limit) * 100) : 0; return `<div class="meter"><i style="width:${p}%; background:${spent > limit ? 'var(--b-bad)' : spent > limit * 0.8 ? 'var(--b-warn)' : 'var(--b-ok)'}"></i></div>`; };
+  el.innerHTML = `<h2>Limits</h2>
+    ${limits.length ? `<div class="limits">${limits.map((l) => {
+      const { over, spent } = limitState(l);
+      return `<div class="limit"><div><b>${esc(scopeLabel(l))}</b> <span class="dim">${esc(periodLabel(l.period))}</span></div>
+        <div>${l.period === 'session' ? `<span class="spent">${over.length ? `${over.length} over; costliest ${fmtCost(spent)}` : `costliest so far ${fmtCost(spent)}`} · limit ${fmtCost(l.limit)}</span>` : `<span class="spent">${fmtCost(spent)} of ${fmtCost(l.limit)}</span>`}${meter(spent, l.limit)}</div>
+        <button type="button" class="close" data-del="${esc(l.id)}" aria-label="Remove this limit" title="Remove">✕</button></div>`;
+    }).join('')}</div>` : '<p class="note" style="margin-top:0">No limits yet. Add one below: for everything, or for one project, model, agent or editor.</p>'}
+    <form class="addlimit" id="addLimit">
+      <select id="lScope" aria-label="What the limit covers">${LIMIT_SCOPES.map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select>
+      <select id="lValue" aria-label="Which one" hidden></select>
+      <select id="lPeriod" aria-label="Period">${LIMIT_PERIODS.map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select>
+      <label>$ <input id="lAmount" type="number" min="0.01" step="any" placeholder="amount" required aria-label="Limit in dollars"></label>
+      <button type="submit" class="go">Add limit</button>
+    </form>
+    <h2 style="margin-top:20px">Alerts</h2>
+    ${list.length ? list.map((a, i) => `<div class="alert">${sevBadge(a.sev)}<div class="body"><div class="ttl">${esc(a.title)}</div><div class="dt">${esc(a.detail)}</div></div>${a.go ? `<button type="button" class="go" data-i="${i}">${a.go.session ? 'Open' : a.go.filter ? 'See sessions' : 'See day'}</button>` : ''}</div>`).join('') : `<div class="alert">${sevBadge('ok')}<div class="body"><div class="ttl">Nothing out of the ordinary</div><div class="dt">No limit is close, and no session or day stands out in this selection.</div></div></div>`}
+    <h2 style="margin-top:20px">Automatic checks</h2>
+    <div class="budget">
+      <div><label for="fSess">Costly session: at least 4× the median and</label>$ <input id="fSess" type="number" min="0" step="any" value="${floors.session}"></div>
+      <div><label for="fDay">Spending spike: at least 2.5× the median day and</label>$ <input id="fDay" type="number" min="0" step="any" value="${floors.day}"></div>
+    </div>
+    <p class="note">Raise the amounts if your usual sessions or days cost more, so only what really stands out is flagged. Limits and amounts are saved on this machine.</p>`;
+  const scope = $('#lScope'), value = $('#lValue');
+  scope.onchange = () => {
+    const vals = scopeValues(scope.value);
+    value.hidden = scope.value === 'all';
+    value.innerHTML = vals.map(([v, label]) => `<option value="${esc(v)}">${esc(label)}</option>`).join('');
+  };
+  $('#addLimit').onsubmit = (e) => {
+    e.preventDefault();
+    const amount = Number($('#lAmount').value);
+    if (!(amount > 0) || (scope.value !== 'all' && !value.value)) return;
+    limits.push({ id: Math.random().toString(36).slice(2, 10), scope: scope.value, value: scope.value === 'all' ? '' : value.value, period: $('#lPeriod').value, limit: amount });
+    saveLimits();
+    render();
+  };
+  for (const [id, key] of [['#fSess', 'session'], ['#fDay', 'day']]) $(id).onchange = (e) => { floors[key] = Math.max(0, Number(e.target.value) || 0); saveLimits(); render(); };
+  el.onclick = (e) => {
+    const del = e.target.closest('[data-del]');
+    if (del) { const i = limits.findIndex((l) => l.id === del.dataset.del); if (i >= 0) limits.splice(i, 1); saveLimits(); render(); return; }
+    const b = e.target.closest('button.go[data-i]');
+    if (!b) return;
+    const go = list[Number(b.dataset.i)].go;
+    if (go.session) { openSession(go.session); return; }
+    if (go.filter) {
+      st.project = st.client = ''; st.q = '';
+      $('#fSearch').value = '';
+      if (go.filter.scope === 'project') st.project = go.filter.value;
+      else if (go.filter.scope === 'client') st.client = go.filter.value;
+      else if (go.filter.scope !== 'all') { st.q = go.filter.value; $('#fSearch').value = go.filter.value; }
+    }
+    st.range = 'all'; st.view = 'sessions'; st.sort = 'cost'; st.page = 0; location.hash = '#sessions'; render();
+  };
+}
+
+// ---------- insights across every project ----------
+function insightsOf(rows, top) {
+  const out = [];
+  const total = totalsOf(rows);
+  const byProj = new Map();
+  for (const r of rows) {
+    const key = rootOf(r).directory;
+    const p = byProj.get(key) || { dir: key, sessions: 0, bad: 0, cost: 0, subCost: 0, cacheRead: 0, input: 0, cacheWrite: 0 };
+    if (!r.parent) { p.sessions++; if (r.outcome === 'error' || r.outcome === 'aborted') p.bad++; }
+    p.cost += r.cost;
+    if (r.parent) p.subCost += r.cost;
+    p.cacheRead += r.tokens.cacheRead; p.input += r.tokens.input; p.cacheWrite += r.tokens.cacheWrite;
+    byProj.set(key, p);
+  }
+  const projects = [...byProj.values()];
+  const showProj = (dir) => ({ view: 'sessions', project: dir });
+
+  for (const p of projects.filter((p) => p.sessions >= 3 && p.bad / p.sessions >= 0.25).sort((a, b) => b.bad / b.sessions - a.bad / a.sessions).slice(0, 3)) {
+    out.push({ sev: 'warn', title: `${projectOf({ directory: p.dir })}: ${p.bad} of ${p.sessions} sessions ended in error or were aborted`, detail: `${Math.round((p.bad / p.sessions) * 100)}% — worth opening a few to see what stops them.`, go: showProj(p.dir) });
+  }
+
+  // MCP servers that fail often
+  const mcp = new Map();
+  for (const r of rows) for (const [name, v] of Object.entries(r.usage?.mcp || {})) {
+    const e = mcp.get(name) || { calls: 0, errors: 0 };
+    e.calls += v.calls; e.errors += v.errors || 0;
+    mcp.set(name, e);
+  }
+  for (const [name, e] of [...mcp].filter(([, e]) => e.calls >= 5 && e.errors / e.calls >= 0.2).sort((a, b) => b[1].errors - a[1].errors).slice(0, 3)) {
+    out.push({ sev: 'warn', title: `MCP server ${name} fails ${Math.round((e.errors / e.calls) * 100)}% of the time`, detail: `${e.errors} errors in ${e.calls} calls. A server that often fails costs retries and tokens.`, go: { view: 'usage', usage: 'mcp' } });
+  }
+
+  // little cache reuse (a runtime that reports no cache reads says nothing, so those are skipped)
+  for (const p of projects.filter((p) => p.cacheRead > 0 && p.cacheRead + p.input + p.cacheWrite > 2e6).map((p) => ({ ...p, hit: p.cacheRead / (p.cacheRead + p.input + p.cacheWrite) })).filter((p) => p.hit < 0.5).sort((a, b) => a.hit - b.hit).slice(0, 2)) {
+    out.push({ sev: 'info', title: `${projectOf({ directory: p.dir })}: only ${Math.round(p.hit * 100)}% of the input came from cache`, detail: 'Frequent changes to the start of the context (instructions, tools, skills) break the cache and cost more.', go: showProj(p.dir) });
+  }
+
+  // subagents carrying the cost
+  for (const p of projects.filter((p) => p.cost >= 5 && p.subCost / p.cost >= 0.6).sort((a, b) => b.subCost - a.subCost).slice(0, 2)) {
+    out.push({ sev: 'info', title: `${projectOf({ directory: p.dir })}: ${Math.round((p.subCost / p.cost) * 100)}% of the cost is subagents`, detail: `${fmtCost(p.subCost)} of ${fmtCost(p.cost)}. Check that each delegation earns its cost, and which model the subagents use.`, go: showProj(p.dir) });
+  }
+
+  // one project taking most of the spend
+  const topProj = [...projects].sort((a, b) => b.cost - a.cost)[0];
+  if (topProj && projects.length > 2 && total.cost > 0 && topProj.cost / total.cost >= 0.5) {
+    out.push({ sev: 'info', title: `${projectOf({ directory: topProj.dir })} is ${Math.round((topProj.cost / total.cost) * 100)}% of the cost`, detail: `${fmtCost(topProj.cost)} of ${fmtCost(total.cost)} in this selection.`, go: showProj(topProj.dir) });
+  }
+
+  // one model taking most of the spend
+  const models = new Map();
+  for (const r of rows) models.set(r.model || '(unknown)', (models.get(r.model || '(unknown)') || 0) + r.cost);
+  const [mName, mCost] = [...models].sort((a, b) => b[1] - a[1])[0] || [];
+  if (mName && total.cost > 0 && mCost / total.cost >= 0.7 && models.size > 1) {
+    out.push({ sev: 'info', title: `${mName} is ${Math.round((mCost / total.cost) * 100)}% of the cost`, detail: 'A lighter model for simple or repetitive work can cut that share.' });
+  }
+
+  // sessions left open
+  const stale = top.filter((t) => t.outcome === 'incomplete' && !isRunning(t) && Date.now() - t.end > 86400000);
+  if (stale.length >= 3) out.push({ sev: 'info', title: `${stale.length} sessions never finished`, detail: 'They stopped mid-turn more than a day ago: closed terminals or crashes.', go: { view: 'sessions' } });
+
+  // installed but unused
+  const un = unusedOf(rows);
+  if (un.length) out.push({ sev: 'info', title: `${un.length} installed skills and MCP servers were not used in this selection`, detail: 'Each loaded skill and server adds to the context every session starts with.', go: { view: 'usage', usage: 'unused' } });
+
+  const rank = { bad: 0, warn: 1, info: 2, ok: 3 };
+  return out.sort((a, b) => rank[a.sev] - rank[b.sev]);
+}
+function drawInsights(rows, top) {
+  const list = insightsOf(rows, top);
+  const el = $('#insightsList');
+  el.innerHTML = list.length ? list.map((a, i) => `<div class="alert">${sevBadge(a.sev)}<div class="body"><div class="ttl">${esc(a.title)}</div><div class="dt">${esc(a.detail)}</div></div>${a.go ? `<button type="button" class="go" data-i="${i}">View</button>` : ''}</div>`).join('')
+    : `<div class="alert">${sevBadge('ok')}<div class="body"><div class="ttl">Nothing stands out</div><div class="dt">No project, server or model shows a pattern worth flagging in this selection.</div></div></div>`;
+  el.onclick = (e) => {
+    const b = e.target.closest('button.go');
+    if (!b) return;
+    const go = list[Number(b.dataset.i)].go;
+    if (go.project) { st.project = go.project; st.page = 0; }
+    if (go.usage) { st.usage = go.usage; st.usageLimit = 25; }
+    location.hash = '#' + go.view;
+    st.view = go.view;
+    render();
+  };
+}
+
+// ---------- installed but not used ----------
+const lastUse = (kind, name) => DATA.rows.reduce((t, r) => ((r.usage?.[kind] || {})[name] ? Math.max(t, r.start) : t), 0);
+function unusedOf(rows) {
+  const inv = DATA.inventory || { skills: [], mcp: [] };
+  const usedSkills = new Set(rows.flatMap((r) => Object.keys(r.usage?.skills || {})));
+  const usedMcp = new Set(rows.flatMap((r) => Object.keys(r.usage?.mcp || {})));
+  return [
+    ...inv.skills.filter((s) => !usedSkills.has(s.name)).map((s) => ({ kind: 'Skill', name: s.name, scope: s.scope, where: s.scope === 'global' ? 'every project' : [...new Set(s.dirs.map((d) => projectOf({ directory: d })))].join(', '), description: s.description, last: lastUse('skills', s.name) })),
+    ...inv.mcp.filter((m) => !usedMcp.has(m.name)).map((m) => ({ kind: 'MCP', name: m.name, scope: m.scope === 'global' ? 'global' : 'project', where: m.scope === 'global' ? 'every project' : m.scope, description: '', last: lastUse('mcp', m.name) })),
+  ].sort((a, b) => (a.last ? 1 : 0) - (b.last ? 1 : 0) || a.name.localeCompare(b.name));
+}
+function drawUnused(list) {
+  const when = (t) => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  $('#usageTable').innerHTML = list.length ? `<table class="rich tiles">
+      <thead><tr><th>Name</th><th>Kind</th><th>Where it is set up</th><th>Last used</th></tr></thead>
+      <tbody>${list.slice(0, st.usageLimit).map((u) => `<tr>
+        <td><div class="skill"><span class="sq" style="background:${css(PALETTE[hash(u.name) % PALETTE.length])}" aria-hidden="true">${esc(u.name[0].toUpperCase())}</span><div><div class="nm">${esc(u.name)}<span class="badge ${u.scope === 'global' ? 'vio' : 'run'} sm">${u.scope === 'global' ? 'Global' : 'Project'}</span></div>${u.description ? `<div class="ds" title="${esc(u.description)}">${esc(u.description)}</div>` : ''}</div></div></td>
+        <td>${u.kind}</td><td class="dim" title="${esc(u.where)}">${esc(u.where.length > 60 ? u.where.slice(0, 57) + '…' : u.where)}</td>
+        <td class="dim">${u.last ? when(u.last) : 'never in the loaded sessions'}</td></tr>`).join('')}</tbody></table>
+      ${list.length > st.usageLimit ? `<button type="button" class="fullbtn" id="moreUsage">Show more (${list.length - st.usageLimit} left) ›</button>` : ''}
+      <p class="note">Installed (home skill folders, project skills, enabled MCP servers) but not called in the sessions on screen. A skill can still be loaded by name from a plugin, which is not listed here. “Never” counts only the sessions loaded (last ${esc(DATA.since)}).</p>`
+    : '<p class="note">Everything installed was used in this selection.</p>';
+  $('#usageTable').onclick = (e) => { if (e.target.closest('#moreUsage')) { st.usageLimit += 25; render(); } };
+  $('#usageTable').onkeydown = null;
 }
 
 const PAGE = 20;
@@ -609,6 +1080,7 @@ const USAGE = {
   skills: { label: 'Skills', unit: 'Calls', pick: (u) => u.skills || {} },
   agents: { label: 'Subagent types', unit: 'Runs', pick: (u) => u.agents || {} },
   mcp: { label: 'MCP servers', unit: 'Calls', pick: (u) => u.mcp || {}, errors: true },
+  unused: { label: 'Unused', unit: '', pick: () => ({}) }, // installed, not called: listed apart
 };
 let usageEntries = new Map();
 function drawUsage(rows) {
@@ -643,7 +1115,10 @@ function drawUsage(rows) {
   usageEntries = m;
   const list = [...m].sort((a, b) => b[1].calls - a[1].calls);
   const counts = Object.fromEntries(Object.entries(USAGE).map(([k, u]) => [k, new Set(rows.flatMap((r) => Object.keys(u.pick(r.usage || {})))).size]));
+  const unusedList = unusedOf(rows);
+  counts.unused = unusedList.length;
   seg($('#usageTab'), Object.entries(USAGE).map(([k, u]) => [k, `${u.label} ${counts[k]}`]), 'usage');
+  if (st.usage === 'unused') return drawUnused(unusedList);
   const when = (t) => new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
   const el = $('#usageTable');
   const recent = Date.now() - 3 * 86400000;
