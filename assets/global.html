@@ -647,7 +647,11 @@ function render() {
   $('#count').textContent = `${top.length} session${top.length === 1 ? '' : 's'}${live ? ` · ${live} running` : ''}`;
   const counts = { sessions: top.length, projects: new Set(top.map((r) => r.directory)).size, alerts: alertsOf(rows).length || null };
   $('#nav').innerHTML = VIEWS.map(([k, label]) => `<a href="#${k}" ${st.view === k ? 'aria-current="page"' : ''}>${label}${counts[k] != null ? `<span class="n">${counts[k]}</span>` : ''}</a>`).join('');
-  if (!rows.length) { main.innerHTML = '<div class="empty">No sessions match.</div>'; return; }
+  if (!rows.length) {
+    main.innerHTML = DATA.rows.length ? '<div class="empty">No sessions match.</div>'
+      : `<div class="empty"><b>No sessions yet</b><p>Nothing from Claude Code or OpenCode in the last ${esc(DATA.since)}. This page fills in by itself once a session is recorded; to look further back, start with a larger <code>--since</code>.</p>${(DATA.notes || []).map((n) => `<p class="dim">${esc(n)}</p>`).join('')}</div>`;
+    return;
+  }
 
   const total = rows.reduce((a, r) => { for (const k in r.tokens) a[k] += r.tokens[k]; a.cost += r.cost; a.ms += r.activeMs; return a; }, { input: 0, output: 0, reasoning: 0, cacheRead: 0, cacheWrite: 0, cost: 0, ms: 0 });
   const est = rows.some((r) => r.costEstimated);
