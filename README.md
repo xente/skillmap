@@ -1,28 +1,32 @@
 # SkillMap
 
-Point it at an AI project folder. It finds every **skill**, **agent** and
-**instruction file** (Claude Code, OpenCode, Codex, Cursor, Gemini, `AGENTS.md`…),
-works out how they reference each other, and renders one self-contained,
-interactive HTML report — so you can stop maintaining skills nobody uses,
-skills that overlap, and copies that have quietly drifted apart.
+See what your AI coding agents cost and what they actually do. SkillMap reads the
+local session history of **Claude Code** and **OpenCode** and gives you one page
+for every project at once: spend per day, per project, model and agent, which
+skills, subagents and MCP servers did the work, which installed ones nobody
+uses, and cost limits that warn you before a week gets expensive.
 
-If you use **OpenCode** or **Claude Code**, it also reads your local session history and shows what
-actually happened at runtime: which skills and subagents ran, why, how long
-each step took, and where the agent wasted time — down to a step-by-step
-replay of every session.
+Point it at a project folder and it also maps the **skills**, **agents** and
+**instruction files** (Claude Code, OpenCode, Codex, Cursor, Gemini, `AGENTS.md`…):
+how they reference each other, which are unused, which overlap, which copies
+have quietly drifted apart, and a step-by-step replay of every session.
 
 No dependencies. No build step. One Node command (Node 18+; OpenCode sessions
 need Node 22.5+).
 
 ```bash
-node bin/skillmap.mjs <project-folder> --open
+npx @xente/skillmap --global --open          # every project, one page
+npx @xente/skillmap <project-folder> --open  # the map of one project
 ```
 
-![Diagram view grouped by scope](docs/images/grouped.png)
+![Global report: cost per day by project](https://raw.githubusercontent.com/xente/skillmap/main/docs/images/global-overview.png)
+
+*The screenshots use generated sample data: invented projects, models and costs.*
 
 ## Contents
 
 - [Quick start](#quick-start)
+- [Global report: every project at once](#global-report-every-project-at-once)
 - [Try it on the demo project](#try-it-on-the-demo-project)
 - [Examples](#examples)
 - [The views](#the-views)
@@ -30,7 +34,6 @@ node bin/skillmap.mjs <project-folder> --open
 - [How connections are derived](#how-connections-are-derived)
 - [What it surfaces (Insights)](#what-it-surfaces-insights)
 - [Runtime: what actually happened (OpenCode, Claude Code)](#runtime-what-actually-happened-opencode-claude-code)
-- [Global report: every project at once](#global-report-every-project-at-once)
 - [Live mode and the herdr plugin](#live-mode-and-the-herdr-plugin)
 - [Usage](#usage)
 - [Keyboard](#keyboard)
@@ -38,15 +41,17 @@ node bin/skillmap.mjs <project-folder> --open
 
 ## Quick start
 
-```bash
-git clone https://github.com/xente/skillmap.git
-cd skillmap
+Nothing to clone. With Node installed:
 
-# scan any project — the report is written to <project>/.skillmap/skillmap.html
-node bin/skillmap.mjs ~/code/my-app --open
+```bash
+# every project at once, served on http://127.0.0.1:4317
+npx @xente/skillmap --global --open
+
+# or scan one project — the report is written to <project>/.skillmap/skillmap.html
+npx @xente/skillmap ~/code/my-app --open
 ```
 
-The terminal prints a summary:
+Scanning a project prints a summary in the terminal:
 
 ```
   ◍  SkillMap · my-app
@@ -59,16 +64,134 @@ The terminal prints a summary:
   ✔ Report written to /home/me/code/my-app/.skillmap/skillmap.html
 ```
 
-To have `skillmap` available everywhere:
+To have the `skillmap` command available everywhere:
 
 ```bash
-npm link                         # from the skillmap folder
-skillmap ~/code/my-app --open
+npm install -g @xente/skillmap
+skillmap --global --open
 ```
+
+To work on SkillMap itself, run it from a checkout:
+
+```bash
+git clone https://github.com/xente/skillmap.git
+cd skillmap
+node bin/skillmap.mjs --global --open   # or `npm link` to get the `skillmap` command
+```
+
+## Global report: every project at once
+
+One page for all the sessions of all your projects (Claude Code and OpenCode),
+instead of one folder: what you spend, where, and which skills, subagents and
+MCP servers did the work.
+
+```bash
+npx @xente/skillmap --global --open        # served on http://127.0.0.1:4317 (Ctrl+C to stop)
+npx @xente/skillmap --global --since 90d
+npx @xente/skillmap app                     # the same, in a window of its own
+npx @xente/skillmap --global -o global.html   # a static page, without the session and project reports
+```
+
+A sidebar has six sections: [Overview](#overview), [Sessions](#sessions),
+[Projects](#projects), [Skills & MCP](#skills--mcp), [Insights](#insights) and
+[Alerts](#alerts-and-limits). The period and the filters at the top apply to all
+of them. The page is served on localhost and refreshes by itself: a session that
+is working now is marked RUNNING and listed first.
+
+### Period and filters
+
+The period button opens a calendar with from/to times and quick ranges (last
+hour to this month, or everything loaded); `?range=6h`, `?range=3d` and the like
+also work. Editor/client, project and a text search narrow every section.
+
+### Overview
+
+Sessions, tokens, cost and active time for the period, then tokens and cost per
+day split by project, editor/client, model or agent, with the metric (cost,
+tokens, tokens without cache reads) one click away. Cache reads are usually most
+of the tokens, which is why that last view exists.
+
+The cards show the change against the previous period of the same length. The
+previous period must be loaded: start with a larger `--since`, or the page says
+which one it needs.
+
+### Sessions
+
+![Sessions](https://raw.githubusercontent.com/xente/skillmap/main/docs/images/global-sessions.png)
+
+The history, sortable, with filters by editor/client, project and text. Each row
+adds up the session's subagents. Running sessions come first.
+
+### Projects
+
+![Projects](https://raw.githubusercontent.com/xente/skillmap/main/docs/images/global-projects.png)
+
+Every folder the agents worked in, with sessions, tokens, cost, how many skills
+and agents it defines and its last activity.
+
+### Skills & MCP
+
+![Skills & MCP](https://raw.githubusercontent.com/xente/skillmap/main/docs/images/global-usage.png)
+
+Skills, subagent types and MCP servers used across the sessions on screen, one
+list at a time: calls, errors, sessions, projects, last use and, for skills, the
+description from their `SKILL.md`. A row opens a panel with its tools, projects,
+recent sessions and, for a skill, the `SKILL.md`.
+
+An **Unused** list sets what is installed (home skill folders, project skills,
+enabled MCP servers) against what was called. Each one adds to the context every
+session starts with.
+
+### Insights
+
+![Insights](https://raw.githubusercontent.com/xente/skillmap/main/docs/images/global-insights.png)
+
+Patterns across projects: where sessions end in error or are aborted, MCP
+servers that fail often, little cache reuse, subagents carrying the cost, one
+project or model taking most of the spend, sessions never finished, and unused
+skills.
+
+### Alerts and limits
+
+![Alerts and limits](https://raw.githubusercontent.com/xente/skillmap/main/docs/images/global-alerts.png)
+
+A limit covers everything or one project, model, agent or editor, over a day,
+the last 7 days, this month, or per session (so a $200-a-week project and a
+$20-a-week one can both be watched). The same section flags unusually costly
+sessions and spending spikes, and the amounts below which those checks stay
+quiet can be raised to fit your usual costs. Its sidebar entry shows how many
+alerts there are.
+
+These limits only warn: the page reads sessions after the fact and cannot block
+anything.
+
+### Opening a session or a project
+
+Open a session or a project and the server builds that project's report on the
+spot (it scans the folder the first time, with a loading state) and shows it in a
+side panel over the list. A session opens its session page: flow, skills,
+subagents, MCP calls and timeline. A project opens the full report: diagram,
+hierarchy, insights and runtime. "Open in a tab" gives the same page on its own,
+and `<page>#session=<id>` and `<page>#project=<folder>` open one directly. The
+static page from `-o` has neither, only the totals.
+
+### Saved settings
+
+The limits, the period and the theme are saved in `~/.skillmap/settings.json`
+(only when the page is served, not in a `-o` file), so they survive a restart,
+another port or another browser. Delete the file to reset them.
+
+### Notes
+
+The editor/client comes from Claude Code's `entrypoint` (terminal, VS Code…).
+OpenCode doesn't record it, so its sessions show as "OpenCode". A session counts
+on the day it started. Claude Code costs are estimates from list prices.
+The page embeds session titles, paths and tool names: it takes no `--include-thinking`
+and holds no prompt text, but review it before sharing.
 
 ## Try it on the demo project
 
-The repo ships with a small fake project, [`examples/demo-project`](examples/demo-project),
+From a checkout of the repository. It ships with a small fake project, [`examples/demo-project`](examples/demo-project),
 built to trigger every kind of finding:
 
 ```bash
@@ -115,20 +238,20 @@ What SkillMap finds in it:
 
 ```bash
 # the project you're standing in → ./.skillmap/skillmap.html
-node bin/skillmap.mjs . --open
+npx @xente/skillmap . --open
 
 # write the report somewhere else
-node bin/skillmap.mjs ~/code/my-app -o ~/reports/my-app.html
+npx @xente/skillmap ~/code/my-app -o ~/reports/my-app.html
 
 # also dump the raw graph as JSON (for scripting / CI)
-node bin/skillmap.mjs ~/code/my-app -j skillmap.json
+npx @xente/skillmap ~/code/my-app -j skillmap.json
 ```
 
 **Fail a CI job when skills go unused** — the JSON has the full analysis
 (`analysis.unused` includes orphan organizers):
 
 ```bash
-node bin/skillmap.mjs . -o /tmp/skillmap.html -j /tmp/skillmap.json
+npx @xente/skillmap . -o /tmp/skillmap.html -j /tmp/skillmap.json
 node -e '
   const { analysis, nodes } = require("/tmp/skillmap.json");
   const name = (id) => nodes.find((n) => n.id === id).rel;
@@ -168,7 +291,7 @@ UML-style cards, one per skill/agent/instruction file: name, kind, scope,
 `duplicate name`…). Arrows are typed edges, labelled on the focused card.
 Nodes with no connections are lined up underneath the main cluster.
 
-![Diagram view](docs/images/diagram.png)
+![Diagram view](https://raw.githubusercontent.com/xente/skillmap/main/docs/images/diagram.png)
 
 - Drag a card to move it, drag empty space to pan, scroll to zoom,
   double-click to zoom in. The `%` button shows the zoom and resets it to 100%.
@@ -185,19 +308,19 @@ Click any card or node. The drawer shows the path (with **Copy path**), flags,
 description, frontmatter, and every connection **with the text snippet that
 produced it** — so a false positive is obvious at a glance.
 
-![Details drawer](docs/images/details.png)
+![Details drawer](https://raw.githubusercontent.com/xente/skillmap/main/docs/images/details.png)
 
 **⤢ Read full definition** (or `O`) opens the whole file rendered as Markdown —
 frontmatter as a table, headings, lists, tables, code and links:
 
-![Definition reader](docs/images/reader.png)
+![Definition reader](https://raw.githubusercontent.com/xente/skillmap/main/docs/images/reader.png)
 
 ### Hierarchy
 
 Organizers expand into their children (recursively), followed by agents → the
 skills they pull in, and any stranded skills.
 
-![Hierarchy view](docs/images/hierarchy.png)
+![Hierarchy view](https://raw.githubusercontent.com/xente/skillmap/main/docs/images/hierarchy.png)
 
 ### Insights
 
@@ -205,9 +328,9 @@ Every finding as a card. Pairs show both names; click one to compare the two
 files side by side, or click a single item to jump to it on the map (filters
 hiding it are lifted automatically).
 
-![Insights view](docs/images/insights.png)
+![Insights view](https://raw.githubusercontent.com/xente/skillmap/main/docs/images/insights.png)
 
-![Comparing two copies](docs/images/compare.png)
+![Comparing two copies](https://raw.githubusercontent.com/xente/skillmap/main/docs/images/compare.png)
 
 Filters by kind and scope, plus the search box, isolate one tool or hunt for a
 name. When something is hidden a banner says so, with a **Show all** button.
@@ -295,12 +418,12 @@ both are read and merged into one list; `--runtime opencode` or
 
 ```bash
 # report with the Runtime tab (sessions from the last 30 days by default)
-node bin/skillmap.mjs ~/code/my-app --since 90d --open
+npx @xente/skillmap ~/code/my-app --since 90d --open
 
 # the same analysis in the terminal
-node bin/skillmap.mjs trace ~/code/my-app --since 90d
-node bin/skillmap.mjs trace --all --since 365d -j trace.json   # every project
-node bin/skillmap.mjs trace . --runtime claude                  # Claude Code only
+npx @xente/skillmap trace ~/code/my-app --since 90d
+npx @xente/skillmap trace --all --since 365d -j trace.json   # every project
+npx @xente/skillmap trace . --runtime claude                  # Claude Code only
 ```
 
 It works with both OpenCode storage layouts (the original tables and the
@@ -427,70 +550,6 @@ with [gitleaks](https://github.com/gitleaks/gitleaks):
 gitleaks dir .skillmap/skillmap.html --redact -v
 ```
 
-## Global report: every project at once
-
-```bash
-node bin/skillmap.mjs --global --open        # served on http://127.0.0.1:4317 (Ctrl+C to stop)
-node bin/skillmap.mjs --global --since 90d
-node bin/skillmap.mjs app                     # the same, in a window of its own
-node bin/skillmap.mjs --global -o global.html   # a static page, without the session and project reports
-```
-
-One page for all the sessions of all your projects (Claude Code and OpenCode),
-instead of one folder. A sidebar has six sections (`#overview`, `#sessions`,
-`#projects`, `#usage`, `#insights`, `#alerts`), and the period and filters at the top apply to all of
-them:
-
-- **Overview**: tokens and cost per day, split by project, editor/client, model
-  or agent, with the metric (cost, tokens, tokens without cache reads) one click
-  away. Cache reads are usually most of the tokens, which is why that last view
-  exists.
-- **Sessions**: the history, sortable, with filters by editor/client, project and
-  text. Each row adds up the session's subagents.
-- **Projects**: every folder the agents worked in, with sessions, tokens, cost,
-  how many skills and agents it defines and its last activity.
-- **Skills & MCP**: skills, subagent types and MCP servers used across the
-  sessions on screen, one list at a time: calls, errors, sessions, projects, last
-  use and, for skills, the description from their `SKILL.md`. A row opens a
-  panel with its tools, projects, recent sessions and, for a skill, the
-  `SKILL.md`. An **Unused** list sets what is installed (home skill folders,
-  project skills, enabled MCP servers) against what was called.
-- **Insights**: patterns across projects: where sessions end in error or are
-  aborted, MCP servers that fail often, little cache reuse, subagents carrying
-  the cost, one project or model taking most of the spend, sessions never
-  finished, and unused skills.
-
-The Overview cards show the change against the previous period of the same
-length (the previous period must be loaded: start with a larger `--since`), and
-the **Alerts** section holds cost limits and the alerts they raise. A limit covers
-everything or one project, model, agent or editor, over a day, the last 7 days,
-this month, or per session (so a $200-a-week project and a $20-a-week one can
-both be watched). The same section flags unusually costly sessions and spending
-spikes, and the amounts below which those checks stay quiet can be raised to
-fit your usual costs. Its sidebar entry shows how many alerts there are. The period button
-opens a calendar with from/to times and quick ranges (last hour to this month,
-or everything loaded); `?range=6h`, `?range=3d` and the like also work. A session that is working now is marked
-RUNNING and listed first, and the page refreshes by itself.
-
-It is served on localhost, like `--watch`. Open a session or a project and the
-server builds that project's report on the spot (it scans the folder the first
-time, with a loading state) and shows it in a side panel over the list. A
-session opens its session page: flow, skills, subagents, MCP calls and
-timeline. A project opens the full report: diagram, hierarchy, insights and
-runtime. "Open in a tab" gives the same page on its own, and
-`<page>#session=<id>` and `<page>#project=<folder>` open one directly. The static page from `-o` has
-neither, only the totals.
-
-The limits, the period and the theme are saved in `~/.skillmap/settings.json`
-(only when the page is served, not in a `-o` file), so they survive a restart,
-another port or another browser. Delete the file to reset them.
-
-The editor/client comes from Claude Code's `entrypoint` (terminal, VS Code…).
-OpenCode doesn't record it, so its sessions show as "OpenCode". A session counts
-on the day it started. Claude Code costs are estimates from list prices.
-The page embeds session titles, paths and tool names: it takes no `--include-thinking`
-and holds no prompt text, but review it before sharing.
-
 ## Live mode and the herdr plugin
 
 ### `--watch`: the Runtime view, live
@@ -584,6 +643,8 @@ or the one named by `SKILLMAP_AGENT` (`claude` or `opencode`) and
 skillmap <project-folder> [options]
 skillmap trace [project-folder] [options]
 skillmap live
+skillmap --global [options]
+skillmap app
 
   -o, --out <file>      Output HTML file   (default: <project>/.skillmap/skillmap.html)
   -j, --json <file>     Also write the raw graph as JSON (for scripting/CI)
@@ -603,6 +664,11 @@ Runtime options (report and `trace`):
       --claude-dir <dir>
                         Claude Code config folder (default $CLAUDE_CONFIG_DIR or ~/.claude)
       --all             `trace` only: every project, not just the folder
+
+Global report (`--global`, `app`): `--since`, `--runtime`, `--db`, `--claude-dir`
+and `--port` as above, plus `-o <file>` for a static page. `skillmap app` is
+`--global` in a window of its own (Chrome, Edge, Brave or Chromium; a browser
+tab if none is found).
 ```
 
 `skillmap trace` prints the same runtime analysis in the terminal (skills,
@@ -638,6 +704,7 @@ lib/analyze.mjs         graph builder, duplicate/unused/cycle analysis
 lib/report.mjs          inlines assets + data into one HTML file
 lib/serve.mjs           --watch server (report + Server-Sent Events)
 lib/live.mjs            `skillmap live`: terminal view of one session
+lib/global.mjs          --global server and payload: every project, limits, settings
 lib/runtime/model.mjs   normalized trace model shared by runtime adapters
 lib/runtime/opencode.mjs  OpenCode adapter (reads the local SQLite store)
 lib/runtime/claude.mjs  Claude Code adapter (reads the JSONL transcripts)
@@ -647,6 +714,7 @@ lib/runtime/analyze.mjs effectiveness, decisions, delegations, hotspots
 assets/template.html    page shell
 assets/app.css          styling
 assets/app.js           diagram, graph, hierarchy, insights and runtime views
+assets/global.html      the global report page (overview, sessions, alerts…)
 examples/demo-project   fake project used for the screenshots
 docs/images             screenshots
 herdr-plugin.toml, herdr/  herdr plugin manifest and launchers
