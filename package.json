@@ -1,10 +1,37 @@
 {
-  "name": "skillmap",
+  "name": "@xente/skillmap",
   "version": "0.1.0",
-  "description": "Scan an AI project folder and visualize its skills, agents and how they connect. Find unused, duplicated and orphan skills.",
+  "description": "See what your AI coding agents cost and do: every Claude Code and OpenCode session in one page, plus a map of skills, agents and MCP servers.",
+  "keywords": [
+    "claude-code",
+    "opencode",
+    "skills",
+    "agents",
+    "mcp",
+    "cost",
+    "tokens",
+    "observability"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xente/skillmap.git"
+  },
+  "homepage": "https://github.com/xente/skillmap#readme",
+  "bugs": {
+    "url": "https://github.com/xente/skillmap/issues"
+  },
   "type": "module",
   "bin": {
-    "skillmap": "./bin/skillmap.mjs"
+    "skillmap": "bin/skillmap.mjs"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "assets",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "start": "node ./bin/skillmap.mjs"
